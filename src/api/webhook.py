@@ -1,61 +1,36 @@
 import uuid
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from src.orchestrator.models import Alert, Incident, IncidentState
-from src.orchestrator.state_machine import IncidentStateMachine
-from src.db.state_store import StateStore
+import asyncio
+from fastapi import APIRouter
+from src.orchestrator.models import Alert, Incident
+from src.orchestrator.engine import process_incident
 from src.observability import logger
 
 router = APIRouter(prefix="/api", tags=["webhook"])
 
 
-class AlertPayload(BaseModel):
-    service: str
-    title: str
-    description: str
-    error_rate: float | None = None
-    latency_p50_ms: float | None = None
-
-
-async def process_incident(incident: Incident, store: StateStore):
-    trace_id = incident.trace_id
-    fsm = IncidentStateMachine(incident)
-
-    if fsm.transition_to(IncidentState.RECEIVED, "Alert received via webhook") == "BLOCKED":
-        logger.error(trace_id, incident.incident_id, msg="Invalid state transition from IDLE")
-        return
-
-    await store.save(incident)
-    logger.info(trace_id, incident.incident_id, event="incident_created", alert=incident.alert.model_dump())
-
-    if fsm.transition_to(IncidentState.TRIAGING, "Starting triage") == "BLOCKED":
-        logger.error(trace_id, incident.incident_id, msg="Cannot transition to TRIAGING")
-        return
-
-    await store.save(incident)
-    logger.info(trace_id, incident.incident_id, event="triage_started")
+class AlertPayload:
+    def __init__(self, service: str, title: str, description: str, error_rate: float | None = None, latency_p50_ms: float | None = None):
+        self.service = service
+        self.title = title
+        self.description = description
+        self.error_rate = error_rate
+        self.latency_p50_ms = latency_p50_ms
 
 
 @router.post("/alert")
-async def receive_alert(payload: AlertPayload):
+async def receive_alert(payload: dict):
     trace_id = str(uuid.uuid4())
-    logger.info(trace_id, event="alert_received", **payload.model_dump())
+    logger.info(trace_id, event="alert_received", **payload)
 
     alert = Alert(
-        service=payload.service,
-        title=payload.title,
-        description=payload.description,
-        error_rate=payload.error_rate,
-        latency_p50_ms=payload.latency_p50_ms,
+        service=payload.get("service", "unknown"),
+        title=payload.get("title", "Unknown alert"),
+        description=payload.get("description", ""),
+        error_rate=payload.get("error_rate"),
+        latency_p50_ms=payload.get("latency_p50_ms"),
     )
 
     incident = Incident(trace_id=trace_id, alert=alert)
-
-    store = StateStore()
-    await store.connect()
-    try:
-        await process_incident(incident, store)
-    finally:
-        await store.disconnect()
+    asyncio.create_task(process_incident(incident))
 
     return {"incident_id": incident.incident_id, "trace_id": trace_id, "state": incident.state.value}

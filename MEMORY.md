@@ -68,8 +68,21 @@ After submission, migrate from Alibaba/Qwen to Google Cloud/Gemini for business 
 ## Current Phase
 
 - [x] Architecture & Design documentation
-- [ ] Project scaffolding (directory structure, base files)
-- [ ] License selection (MIT or Apache 2.0 — need decision)
+- [x] Project scaffolding (directory structure, base files)
+- [x] License (MIT)
+- [x] GitHub repo created: https://github.com/salginci/oncall-autopilot
+- [x] Core source modules: config, models, state machine, state store, observability
+- [x] Agent tools: github.py, metrics.py, health.py, deploy.py, watcher.py
+- [x] Qwen agents: triage.py, investigate.py, remediate.py
+- [x] Orchestrator engine: full incident lifecycle + monitor loop
+- [x] Demo service: FastAPI with configurable pool + load generator
+- [x] Human-in-the-loop CLI: typer CLI with status/approve/deny/watch commands
+- [x] Docker Compose: agent + demo-service + redis + loadgen + cli
+- [ ] Docker test run (verify locally)
+- [ ] Architecture diagram (architecture.png)
+- [ ] Alibaba Cloud deployment (ECS + Redis + SLS)
+- [ ] Demo video recording
+- [ ] Hackathon submission
 - [ ] Project scaffolding
 - [ ] Demo service (the "production" app we break)
 - [ ] Agent state machine

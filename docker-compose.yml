@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  agent:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - QWEN_API=${QWEN_API}
+      - QWEN_BASE_URL=${QWEN_BASE_URL:-https://api.qwencloud.com/v1}
+      - QWEN_MODEL=${QWEN_MODEL:-qwen-plus}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DEMO_REPO=${DEMO_REPO:-salginci/oncall-autopilot}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - DEMO_SERVICE_URL=${DEMO_SERVICE_URL:-http://demo-service:3000}
+      - AGENT_POLL_INTERVAL=${AGENT_POLL_INTERVAL:-5}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-0.10}
+      - LATENCY_THRESHOLD_MS=${LATENCY_THRESHOLD_MS:-500}
+    depends_on:
+      redis:
+        condition: service_started
+      demo-service:
+        condition: service_started
+
+  demo-service:
+    build:
+      context: .
+      dockerfile: demo/service/Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./demo/service/config.yaml:/app/config.yaml
+
+  loadgen:
+    build:
+      context: .
+      dockerfile: demo/service/Dockerfile
+    command: python loadgen.py
+    depends_on:
+      - demo-service
+    environment:
+      - SERVICE_URL=${DEMO_SERVICE_URL:-http://demo-service:3000}
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  cli:
+    build: .
+    command: python -m demo.agent.cli watch
+    depends_on:
+      - agent
+    stdin_open: true
+    tty: true

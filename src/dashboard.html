@@ -253,32 +253,116 @@ async function confirmApprove() {
 
 async function triggerIncident() {
   addLog('TRIGGER → Reducing pool from 20 to 0...', 'event');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Triggering incident...</b><br/>Setting connection pool to 0 — all requests will fail with 503.';
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--red)">Bad commit pushed to GitHub</b><br/><br/>
+    <span style="color:var(--muted)">$ git commit -m</span> "reduce pool for testing"<br/>
+    <span style="color:var(--muted)">$ git push origin main</span><br/><br/>
+    <span style="color:var(--muted)">Changed file:</span> <b>demo/service/config.yaml</b><br/>
+    <span style="color:var(--red)">- pool_size: 20</span><br/>
+    <span style="color:var(--green)">+ pool_size: 0</span><br/><br/>
+    <span style="color:var(--orange)">This will cause all DB connections to fail (503).</span>
+  `;
 
   await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
   addLog('TRIGGER → Pool now at 0 — errors flooding in', 'event');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Pool exhausted!</b><br/>Error rate climbing. Agent monitoring...';
 
   // Animate steps with delays
   setFlowStep(0);
   await delay(800);  setFlowStep(1);
   addLog('WATCHER → Detected config change, reloading service', 'event');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--orange)">Agent detected commit</b><br/>Reloading demo service with pool_size=0...';
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--orange)">Agent detected commit</b><br/><br/>
+    <span style="color:var(--muted)">Commit watcher polled GitHub API</span><br/>
+    <span style="color:var(--muted)">→ Found new commit changing config.yaml</span><br/>
+    <span style="color:var(--muted)">→ Triggered POST /admin/pool/0</span><br/><br/>
+    <span style="color:var(--orange)">Demo service reloaded with pool_size=0</span>
+  `;
+
   await delay(1500); setFlowStep(2);
   addLog('MONITOR → Error rate 100% exceeds 10% threshold — creating incident', 'event');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Incident Created!</b><br/>Error rate: 100%. Severity: CRITICAL.';
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--red)">Incident Created!</b><br/><br/>
+    <span style="color:var(--muted)">Monitor poll: error_rate = </span><span style="color:var(--red)">100%</span><br/>
+    <span style="color:var(--muted)">Threshold: </span>10% — <b style="color:var(--red)">BREACHED</b><br/><br/>
+    <span>State: RECEIVED → TRIAGING</span><br/>
+    <span style="color:var(--muted)">Calling Qwen API for severity assessment...</span>
+  `;
+
   await delay(3000); setFlowStep(3);
   addLog('Qwen TRIAGE → Assessing severity...', 'qwen');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Triage</b><br/>Analyzing alert severity and blast radius...';
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--purple)">Qwen Triage</b><br/><br/>
+    <span style="color:var(--muted)">Analyzing alert severity...</span><br/>
+    <span style="color:var(--muted)">→ Error rate 100%, service fully down</span><br/>
+    <span style="color:var(--muted)">→ Customer-facing impact, no healthy instances</span><br/><br/>
+    <span>Result: </span><b style="color:var(--red)">CRITICAL</b><br/>
+    <span style="color:var(--muted)">Escalating to investigation...</span>
+  `;
+
   await delay(3000); setFlowStep(4);
-  addLog('Qwen INVESTIGATE → Calling tools: get_recent_commits, get_commit_diff, get_health', 'qwen');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Investigating</b><br/>Checking recent commits, health status, and config...';
+  addLog('Qwen INVESTIGATE → Calling tools', 'qwen');
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--purple)">Qwen Investigating</b><br/><br/>
+    <span style="color:var(--muted)">→ Tool: get_recent_commits()</span> — found commit "reduce pool"<br/>
+    <span style="color:var(--muted)">→ Tool: get_commit_diff()</span> — pool_size: 20→0<br/>
+    <span style="color:var(--muted)">→ Tool: get_health()</span> — pool: size=0, available=0<br/>
+    <span style="color:var(--muted)">→ Tool: get_config()</span> — confirms pool_size=0<br/><br/>
+    <span style="color:var(--muted)">Building evidence chain...</span>
+  `;
+
   await delay(6000); setFlowStep(5);
   addLog('Qwen REMEDIATE → Generating fix plan', 'qwen');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Remediating</b><br/>Proposing fix based on root cause analysis...';
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--purple)">Qwen Remediating</b><br/><br/>
+    <span style="color:var(--muted)">Root cause: pool_size reduced from 20→0</span><br/>
+    <span style="color:var(--muted)">Evidence: commit diff + health check confirm</span><br/><br/>
+    <span style="color:var(--muted)">Generating fix plan...</span>
+  `;
+
   await delay(3000); setFlowStep(6);
+
+  // Try to get actual Qwen analysis from backend
+  let qwenData = null;
+  try {
+    const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+    qwenData = d.incident_detail;
+    if (qwenData && qwenData.pending_approval) currentIncident = d.pending_approval;
+  } catch(e) {}
+
+  if (qwenData && qwenData.root_cause) {
+    // Show real Qwen analysis
+    const rc = qwenData.root_cause;
+    const rem = qwenData.remediation || {};
+    const panel = document.getElementById('qwen-panel');
+    panel.classList.add('visible');
+    document.getElementById('qwen-content').innerHTML = `
+      <div class="field"><b>Severity:</b> <span style="color:var(--red)">${qwenData.severity||'—'}</span></div>
+      <div class="field"><b>Triage:</b> ${qwenData.triage_summary||'—'}</div>
+      <div class="field"><b>Root Cause:</b> ${rc.summary||'—'}</div>
+      <div class="field"><b>Confidence:</b> <b>${((rc.confidence||0)*100).toFixed(0)}%</b></div>
+      <div class="field"><b>Evidence:</b></div>
+      ${(rc.evidence||[]).map(e=>'<div class="evidence">• '+e+'</div>').join('')}
+      <div class="field" style="margin-top:8px"><b style="color:var(--green)">Proposed Fix:</b> ${rem.action||'—'}</div>
+      <div class="field"><b>Risk:</b> ${rem.risk||'—'}</div>
+      <div class="field"><b>Commands:</b> ${(rem.commands||[]).join('<br/>')||'—'}</div>
+    `;
+
+    document.getElementById('action-context').innerHTML = `
+      <b style="color:var(--orange)">Review Required</b><br/><br/>
+      <span>Qwen identified the root cause with </span><b>${((rc.confidence||0)*100).toFixed(0)}% confidence</b><span>.</span><br/><br/>
+      <span style="color:var(--green)">Fix: </span>${rem.action||'Restore pool to 20'}<br/>
+      <span>Risk: </span><b>${rem.risk||'—'}</b><br/><br/>
+      <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see full details and execute.</span>
+    `;
+  } else {
+    document.getElementById('action-context').innerHTML = `
+      <b style="color:var(--orange)">Review Required</b><br/><br/>
+      <span>Qwen has completed analysis and proposed a fix.</span><br/><br/>
+      <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see the full analysis and execute the fix.</span>
+    `;
+  }
+
   addLog('STATE → WAITING APPROVAL — human review required', 'event');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--orange)">Review Required</b><br/>Qwen has proposed a fix. Click <b>Review & Approve</b> to see details.';
 
   document.getElementById('global-dot').className = 'status-dot active';
   document.getElementById('global-status').textContent = 'WAITING APPROVAL';

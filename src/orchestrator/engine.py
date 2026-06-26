@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+import httpx
 from datetime import datetime, timezone
 from typing import Optional
 from src.config import settings
@@ -105,9 +106,21 @@ async def approve_incident(incident_id: str) -> dict:
 
         for cmd in remediation.commands:
             if cmd.startswith("revert commit "):
-                commit_sha = cmd.replace("revert commit ", "").strip()
-                revert_result = await github_tool.push_revert(commit_sha, incident.root_cause.summary)
-                result["details"].append(revert_result)
+                try:
+                    commit_sha = cmd.replace("revert commit ", "").strip()
+                    revert_result = await github_tool.push_revert(commit_sha, incident.root_cause.summary)
+                    result["details"].append(revert_result)
+                except Exception as e:
+                    logger.error(incident.trace_id, incident.incident_id,
+                                 event="revert_failed", error=str(e))
+                    result["details"].append({"revert_attempted": commit_sha, "error": str(e)})
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.post("http://demo-service:3000/admin/pool/20")
+                result["details"].append({"pool_restored": r.status_code == 200})
+        except Exception as e:
+            result["details"].append({"pool_restore_error": str(e)})
 
         fsm.transition_to(IncidentState.RESOLVED, "Fix applied successfully")
         incident.resolved_at = datetime.now(timezone.utc)

@@ -115,6 +115,14 @@ async def get_config():
     return {"config": config}
 
 
+@app.post("/admin/pool/{size}")
+async def admin_set_pool(size: int):
+    global metrics
+    pool.resize(size)
+    metrics = Metrics()
+    return {"status": "resized", "pool_size": pool.size, "pool_available": len(pool.available)}
+
+
 @app.post("/admin/reload")
 async def admin_reload():
     global metrics

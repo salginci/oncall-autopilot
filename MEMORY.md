@@ -79,7 +79,7 @@ After submission, migrate from Alibaba/Qwen to Google Cloud/Gemini for business 
 - [x] Human-in-the-loop CLI: typer CLI with status/approve/deny/watch commands
 - [x] Docker Compose: agent + demo-service + redis + loadgen + cli
 - [ ] Docker test run (verify locally)
-- [ ] Architecture diagram (architecture.png)
+- [x] Architecture diagram (architecture.png) — two-view: topology + incident lifecycle
 - [ ] Alibaba Cloud deployment (ECS + Redis + SLS)
 - [ ] Demo video recording
 - [ ] Hackathon submission

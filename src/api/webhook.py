@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+from typing import Optional
 from fastapi import APIRouter
 from src.orchestrator.models import Alert, Incident
 from src.orchestrator.engine import process_incident
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api", tags=["webhook"])
 
 
 class AlertPayload:
-    def __init__(self, service: str, title: str, description: str, error_rate: float | None = None, latency_p50_ms: float | None = None):
+    def __init__(self, service: str, title: str, description: str, error_rate: Optional[float] = None, latency_p50_ms: Optional[float] = None):
         self.service = service
         self.title = title
         self.description = description

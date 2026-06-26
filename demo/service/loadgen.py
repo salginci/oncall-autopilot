@@ -2,7 +2,8 @@ import time
 import random
 import httpx
 
-SERVICE_URL = "http://localhost:3000"
+import os
+SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:3000")
 
 
 def format_latency(ms):

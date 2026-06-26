@@ -1,3 +1,4 @@
+from typing import Optional
 from datetime import datetime, timezone, timedelta
 from src.tools.github import github_tool
 from src.tools.deploy import deploy_tool
@@ -6,7 +7,7 @@ from src.observability import logger
 
 class CommitWatcher:
     def __init__(self):
-        self._last_seen_sha: str | None = None
+        self._last_seen_sha: Optional[str] = None
 
     async def init(self):
         commits = await github_tool.get_recent_commits(since_minutes=60, limit=1)

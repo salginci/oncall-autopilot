@@ -1,5 +1,5 @@
 from typing import Optional
-from github import Github, Auth
+from github import Github, Auth, GithubObject
 from src.config import settings
 from src.orchestrator.models import CommitInfo
 from src.observability import logger
@@ -17,7 +17,7 @@ class GitHubTool:
 
     async def get_recent_commits(self, since_minutes: int = 10, limit: int = 5) -> list[CommitInfo]:
         commits = []
-        for c in self.repo.get_commits(since=None, sha="main")[:limit]:
+        for c in self.repo.get_commits(sha="main")[:limit]:
             files = [f.filename for f in c.files]
             commits.append(CommitInfo(
                 sha=c.sha,

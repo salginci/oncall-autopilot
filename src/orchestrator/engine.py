@@ -2,6 +2,7 @@ import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 from src.config import settings
 from src.orchestrator.models import Incident, IncidentState, Alert, Severity, RootCause, RemediationPlan, CommitInfo
 from src.orchestrator.state_machine import IncidentStateMachine
@@ -146,10 +147,15 @@ async def deny_incident(incident_id: str, override_action: str = "") -> dict:
     return {"success": True, "action": "denied", "override": override_action or None}
 
 
-async def monitor_loop(interval: int | None = None):
+async def monitor_loop(interval: Optional[int] = None):
     poll_interval = interval if interval is not None else settings.AGENT_POLL_INTERVAL
 
-    await commit_watcher.init()
+    logger.info("monitor", event="monitor_loop_started", interval=poll_interval)
+
+    try:
+        await commit_watcher.init()
+    except Exception as e:
+        logger.error("monitor", event="commit_watcher_init_error", error=str(e))
 
     while True:
         try:
@@ -178,5 +184,8 @@ async def monitor_loop(interval: int | None = None):
         except Exception as e:
             trace_id = str(uuid.uuid4())
             logger.error(trace_id, event="monitor_error", error=str(e))
+
+        except Exception as e:
+            logger.error("monitor", event="monitor_loop_error", error=str(e), error_type=type(e).__name__)
 
         await asyncio.sleep(poll_interval)

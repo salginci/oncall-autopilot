@@ -1,17 +1,16 @@
-version: "3.8"
-
 services:
   agent:
     build: .
     ports:
       - "8080:8080"
     environment:
+      - PYTHONUNBUFFERED=1
       - QWEN_API=${QWEN_API}
       - QWEN_BASE_URL=${QWEN_BASE_URL:-https://api.qwencloud.com/v1}
       - QWEN_MODEL=${QWEN_MODEL:-qwen-plus}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - DEMO_REPO=${DEMO_REPO:-salginci/oncall-autopilot}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - DEMO_SERVICE_URL=${DEMO_SERVICE_URL:-http://demo-service:3000}
       - AGENT_POLL_INTERVAL=${AGENT_POLL_INTERVAL:-5}
       - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-0.10}
@@ -44,7 +43,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
 
   cli:
     build: .

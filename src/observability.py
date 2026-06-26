@@ -1,4 +1,5 @@
 import json
+import sys
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -8,8 +9,10 @@ class TraceLogger:
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
+        self.logger.propagate = False
 
-        handler = logging.StreamHandler()
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.DEBUG)
         handler.setFormatter(logging.Formatter("%(message)s"))
         self.logger.addHandler(handler)
 
@@ -28,6 +31,7 @@ class TraceLogger:
             self.logger.warning(msg)
         else:
             self.logger.info(msg)
+        sys.stdout.flush()
 
     def info(self, trace_id: str, incident_id: Optional[str] = None, **kwargs):
         self._emit("info", trace_id, incident_id, **kwargs)

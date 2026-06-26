@@ -1,8 +1,9 @@
+import os
 import time
 import random
+import threading
 import httpx
 
-import os
 SERVICE_URL = os.getenv("SERVICE_URL", "http://localhost:3000")
 
 
@@ -15,14 +16,10 @@ def format_latency(ms):
         return f"\033[31m{ms:.0f}ms\033[0m"
 
 
-def main():
-    endpoints = ["/api/orders", "/api/orders"]
-    post = [False, True]
-
+def worker():
     while True:
-        idx = random.randint(0, len(endpoints) - 1)
-        endpoint = endpoints[idx]
-        is_post = post[idx]
+        endpoint = "/api/orders"
+        is_post = random.choice([True, False, False])
 
         try:
             start = time.time()
@@ -40,7 +37,18 @@ def main():
         except Exception as e:
             print(f"[ERR]  {endpoint} {e}")
 
-        time.sleep(random.uniform(0.05, 0.15))
+        time.sleep(random.uniform(0.005, 0.01))
+
+
+def main():
+    num_workers = 15
+    print(f"Starting {num_workers} concurrent load generators...")
+    for i in range(num_workers):
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+
+    while True:
+        time.sleep(10)
 
 
 if __name__ == "__main__":

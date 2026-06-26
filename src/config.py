@@ -6,7 +6,7 @@ load_dotenv()
 
 class Settings:
     QWEN_API: str = os.getenv("QWEN_API", "")
-    QWEN_BASE_URL: str = os.getenv("QWEN_BASE_URL", "https://api.qwencloud.com/v1")
+    QWEN_BASE_URL: str = os.getenv("QWEN_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1")
     QWEN_MODEL: str = os.getenv("QWEN_MODEL", "qwen-plus")
 
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")

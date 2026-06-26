@@ -16,10 +16,11 @@ Output as JSON:
   "requires_approval": true/false
 }
 
-Rules:
-- If the fix involves a code/config revert, the command should be: "revert commit <sha>"
-- If the fix involves a config change, describe the exact change
-- Always set requires_approval to true for production changes
+CRITICAL RULES:
+- If the root cause involves a commit that changed a config file (e.g., pool_size was reduced), the ONLY fix command should be: "revert commit <commit_sha_or_any_similar>"
+- Always include exactly one "revert commit <sha>" command if a commit caused the issue
+- DO NOT suggest generic commands like sed, git, or make. Only use "revert commit <sha>".
+- Always set requires_approval to true
 - Risk assessment: LOW=trivial change, MEDIUM=config change, HIGH=code change/revert
 
 Respond ONLY as JSON."""

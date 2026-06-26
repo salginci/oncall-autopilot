@@ -1,10 +1,11 @@
+import asyncio
 import time
 import random
 import threading
 import yaml
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException
 
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
@@ -116,7 +117,9 @@ async def get_config():
 
 @app.post("/admin/reload")
 async def admin_reload():
+    global metrics
     config = reload_config()
+    metrics = Metrics()
     return {"status": "reloaded", "pool_size": config["database"]["pool_size"]}
 
 
@@ -132,7 +135,7 @@ async def get_orders():
 
     try:
         latency_ms = random.uniform(5, 30)
-        time.sleep(latency_ms / 1000)
+        await asyncio.sleep(latency_ms / 1000)
         total_latency = (time.time() - start) * 1000
         metrics.record(total_latency, False)
         return {"orders": [{"id": i, "status": "processing"} for i in range(3)], "pool_slot": slot}
@@ -152,7 +155,7 @@ async def create_order():
 
     try:
         latency_ms = random.uniform(10, 50)
-        time.sleep(latency_ms / 1000)
+        await asyncio.sleep(latency_ms / 1000)
         total_latency = (time.time() - start) * 1000
         metrics.record(total_latency, False)
         return {"order": {"id": random.randint(1000, 9999), "status": "created"}, "pool_slot": slot}

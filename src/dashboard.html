@@ -22,46 +22,57 @@
   .btn.deny{background:var(--orange);color:#000;}
   .btn.deny:hover:not(:disabled){background:#e6b122;}
   .btn.reset{background:var(--border);color:var(--text);font-size:11px;padding:6px 14px;}
-  .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;}
-  .status-dot.idle{background:var(--muted);}
-  .status-dot.active{background:var(--red);animation:blink 1s infinite;}
-  .status-dot.resolved{background:var(--green);}
-  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
 
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
-  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+  .grid{display:grid;grid-template-columns:300px 1fr 340px;gap:12px;margin-bottom:12px;}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;}
   .panel h2{font-size:12px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
 
-  .metric-row{display:flex;gap:16px;justify-content:space-between;}
-  .metric-box{text-align:center;flex:1;}
-  .metric-box .val{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;}
-  .metric-box .lbl{font-size:10px;color:var(--muted);margin-top:2px;}
-  .val.good{color:var(--green);}.val.warn{color:var(--orange);}.val.bad{color:var(--red);}
+  .metric{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .metric .val{font-weight:600;font-variant-numeric:tabular-nums;}
+  .val.ok{color:var(--green);}.val.warn{color:var(--orange);}.val.bad{color:var(--red);}
 
-  .ticker{font-family:'SF Mono',Monaco,monospace;font-size:11px;line-height:1.6;overflow-y:auto;height:200px;
+  .flow-step{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:6px;margin-bottom:4px;font-size:13px;
+    border:1px solid var(--border);opacity:.2;transition:all .6s ease;position:relative;}
+  .flow-step.active{opacity:1;border-color:var(--purple);background:rgba(163,113,247,.08);}
+  .flow-step.done{opacity:1;border-color:var(--green);}
+  .flow-step .indicator{width:28px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;background:var(--border);color:var(--muted);flex-shrink:0;transition:all .4s;}
+  .flow-step.active .indicator{background:var(--purple);color:#fff;animation:pulse 1.5s infinite;}
+  .flow-step.done .indicator{background:var(--green);color:#000;}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(163,113,247,.4)}50%{box-shadow:0 0 0 8px rgba(163,113,247,0)}}
+  .flow-step .label{flex:1;line-height:1.3;}
+  .flow-step .detail{font-size:11px;color:var(--muted);margin-top:2px;}
+
+  .qwen-panel{background:#1a0a2e;border:1px solid var(--purple);border-radius:8px;padding:14px;margin-top:8px;display:none;}
+  .qwen-panel.visible{display:block;}
+  .qwen-panel .title{color:var(--purple);font-weight:700;font-size:13px;margin-bottom:8px;}
+  .qwen-panel .field{margin-bottom:6px;font-size:12px;line-height:1.4;}
+  .qwen-panel .field b{color:var(--blue);}
+  .qwen-panel .evidence{font-size:11px;color:var(--muted);margin:4px 0 4px 12px;}
+
+  .approval-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;
+    justify-content:center;align-items:center;z-index:100;}
+  .approval-overlay.visible{display:flex;}
+  .approval-box{background:var(--panel);border:2px solid var(--orange);border-radius:12px;padding:24px;max-width:500px;width:90%;}
+  .approval-box h2{color:var(--orange);font-size:16px;margin-bottom:12px;}
+  .approval-box .preview{background:#0d1117;border-radius:6px;padding:12px;font-size:12px;line-height:1.6;margin-bottom:16px;}
+  .approval-box .preview b{color:var(--blue);}
+  .approval-box .actions{display:flex;gap:10px;}
+  .approval-box .actions .btn{flex:1;}
+
+  .ticker{font-family:'SF Mono',Monaco,monospace;font-size:11px;line-height:1.6;overflow-y:auto;height:180px;
     background:#0d1117;border-radius:6px;padding:8px;}
   .ticker .line{padding:1px 0;border-bottom:1px solid rgba(48,54,61,.5);white-space:pre-wrap;word-break:break-all;}
   .ticker .ts{color:var(--muted);margin-right:6px;}
   .ticker .event{color:var(--purple);font-weight:600;}
   .ticker .err{color:var(--red);}
   .ticker .ok{color:var(--green);}
-  .ticker .qwen{color:var(--purple);}
-  .ticker .warn{color:var(--orange);}
 
-  .flow-step{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;margin-bottom:3px;font-size:12px;
-    border:1px solid transparent;opacity:.35;transition:all .3s;}
-  .flow-step.done{opacity:1;border-color:var(--green);}
-  .flow-step.current{opacity:1;border-color:var(--purple);background:rgba(163,113,247,.08);}
-  .flow-step .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-  .flow-step.done .dot{background:var(--green);}
-  .flow-step.current .dot{background:var(--purple);}
-  .flow-step .dot{background:var(--border);}
-
-  .qwen-resp{background:#1a0a2e;border:1px solid var(--purple);border-radius:6px;padding:10px;margin-top:8px;
-    font-size:12px;line-height:1.5;display:none;}
-  .qwen-resp .label{color:var(--purple);font-weight:600;margin-bottom:4px;}
-  .qwen-resp b{color:var(--blue);}
+  .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;}
+  .status-dot.idle{background:var(--muted);}
+  .status-dot.active{background:var(--red);animation:blink 1s infinite;}
+  .status-dot.resolved{background:var(--green);}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
 </style>
 </head>
 <body>
@@ -71,70 +82,96 @@
   <span style="font-size:12px;color:var(--muted);" id="global-status">Initializing...</span>
   <span style="flex:1"></span>
   <button class="btn trigger" id="btn-trigger" onclick="triggerIncident()">Trigger Incident</button>
-  <button class="btn approve" id="btn-approve" disabled onclick="approveIncident()">Approve Fix</button>
+  <button class="btn approve" id="btn-approve" disabled onclick="showApproval()">Review & Approve</button>
   <button class="btn deny" id="btn-deny" disabled onclick="denyIncident()">Deny</button>
   <button class="btn reset" onclick="resetAll()">Reset</button>
 </div>
 
-<div class="grid3">
-  <!-- Service Metrics -->
+<div class="grid">
+  <!-- Left: Service metrics -->
   <div class="panel">
     <h2>Orders Service :3000</h2>
-    <div class="metric-row" style="margin-bottom:10px;">
-      <div class="metric-box"><div class="val" id="m-error">0%</div><div class="lbl">Error Rate</div></div>
-      <div class="metric-box"><div class="val" id="m-pool">20</div><div class="lbl">Pool Size</div></div>
-      <div class="metric-box"><div class="val" id="m-avail">20</div><div class="lbl">Available</div></div>
-    </div>
-    <div class="metric-row">
-      <div class="metric-box"><div class="val" id="m-total">0</div><div class="lbl">Total Requests</div></div>
-      <div class="metric-box"><div class="val" id="m-latency">0ms</div><div class="lbl">P50 Latency</div></div>
-      <div class="metric-box"><div class="val" id="m-errors">0</div><div class="lbl">Error Count</div></div>
-    </div>
+    <div class="metric"><span>Status</span><span class="val" id="m-status">—</span></div>
+    <div class="metric"><span>Pool Size</span><span class="val" id="m-pool">—</span></div>
+    <div class="metric"><span>Available</span><span class="val" id="m-avail">—</span></div>
+    <div class="metric"><span>Error Rate</span><span class="val" id="m-error">—</span></div>
+    <div class="metric"><span>Total Requests</span><span class="val" id="m-total">—</span></div>
+    <div class="metric"><span>P50 Latency</span><span class="val" id="m-latency">—</span></div>
   </div>
 
-  <!-- Flow steps -->
-  <div class="panel">
-    <h2>Incident Flow</h2>
-    <div id="flow-steps">
-      <div class="flow-step" data-step="1"><span class="dot"></span> Bad commit pushed to GitHub</div>
-      <div class="flow-step" data-step="2"><span class="dot"></span> Agent detects commit + reloads service</div>
-      <div class="flow-step" data-step="3"><span class="dot"></span> Error rate spikes — Incident created</div>
-      <div class="flow-step" data-step="4"><span class="dot"></span> Qwen triages severity</div>
-      <div class="flow-step" data-step="5"><span class="dot"></span> Qwen investigates (tools: commits, health)</div>
-      <div class="flow-step" data-step="6"><span class="dot"></span> Qwen proposes remediation plan</div>
-      <div class="flow-step" data-step="7"><span class="dot"></span> Awaiting human approval</div>
-      <div class="flow-step" data-step="8"><span class="dot"></span> Fix executed — service recovered</div>
+  <!-- Center: Flow + Qwen -->
+  <div>
+    <div class="panel" style="margin-bottom:8px;">
+      <h2>Incident Flow — Step by Step</h2>
+      <div id="flow-steps">
+        <div class="flow-step" data-step="0">
+          <span class="indicator">1</span>
+          <span class="label">Bad commit pushed to GitHub<div class="detail">pool_size changed: 20 → 0 — service degraded</div></span>
+        </div>
+        <div class="flow-step" data-step="1">
+          <span class="indicator">2</span>
+          <span class="label">Agent detects commit + reloads service<div class="detail">Commit watcher sees config.yaml change, triggers /admin/pool/0</div></span>
+        </div>
+        <div class="flow-step" data-step="2">
+          <span class="indicator">3</span>
+          <span class="label">Error rate spikes → Incident Created<div class="detail">Error rate &gt; 10% threshold detected by monitor loop</div></span>
+        </div>
+        <div class="flow-step" data-step="3">
+          <span class="indicator">4</span>
+          <span class="label">Qwen TRIAGE<div class="detail">Assesses severity + impact of the outage</div></span>
+        </div>
+        <div class="flow-step" data-step="4">
+          <span class="indicator">5</span>
+          <span class="label">Qwen INVESTIGATE<div class="detail">Calls tools: get_recent_commits, get_commit_diff, get_health</div></span>
+        </div>
+        <div class="flow-step" data-step="5">
+          <span class="indicator">6</span>
+          <span class="label">Qwen REMEDIATE<div class="detail">Generates fix plan with risk assessment</div></span>
+        </div>
+        <div class="flow-step" data-step="6">
+          <span class="indicator">7</span>
+          <span class="label">WAITING APPROVAL<div class="detail">Human reviews proposed fix before execution</div></span>
+        </div>
+        <div class="flow-step" data-step="7">
+          <span class="indicator">8</span>
+          <span class="label">Fix Executed → Service Recovered<div class="detail">Pool restored to 20, service healthy again</div></span>
+        </div>
+      </div>
     </div>
-    <div class="qwen-resp" id="qwen-box">
-      <div class="label">Qwen Analysis</div>
+    <div class="qwen-panel" id="qwen-panel">
+      <div class="title">Qwen Analysis</div>
       <div id="qwen-content"></div>
     </div>
   </div>
 
-  <!-- GitHub activity -->
+  <!-- Right: Action context -->
   <div class="panel">
-    <h2>GitHub — salginci/oncall-autopilot</h2>
-    <div id="github-status" style="font-size:12px;color:var(--muted);">Monitoring commits...</div>
-    <div class="ticker" id="github-log" style="height:180px;margin-top:8px;">
-      <div class="line"><span class="ts">--:--:--</span> Connected to GitHub API</div>
+    <h2>What's Happening?</h2>
+    <div id="action-context" style="font-size:12px;line-height:1.6;color:var(--muted);">
+      System is idle — monitoring demo service every 5 seconds.<br/><br/>
+      Click <b style="color:var(--red)">Trigger Incident</b> to simulate a bad config deploy that breaks the service.
     </div>
   </div>
 </div>
 
-<div class="grid2">
-  <!-- Agent internal logs -->
-  <div class="panel">
-    <h2>Agent Logs — Internal Operations</h2>
-    <div class="ticker" id="agent-log" style="height:220px;">
-      <div class="line"><span class="ts">--:--:--</span> Monitor loop started — polling every 5s</div>
-    </div>
+<!-- Agent Logs -->
+<div class="panel" style="margin-bottom:8px;">
+  <h2>Agent Internal Logs</h2>
+  <div class="ticker" id="agent-log" style="height:200px;">
+    <div class="line"><span class="ts">--:--:--</span> Monitor loop started — polling every 5s</div>
   </div>
+</div>
 
-  <!-- Load generator + service logs -->
-  <div class="panel">
-    <h2>Load Generator + Service Activity</h2>
-    <div class="ticker" id="service-log" style="height:220px;">
-      <div class="line"><span class="ts">--:--:--</span> 15 workers hitting /api/orders...</div>
+<!-- Approval Overlay -->
+<div class="approval-overlay" id="approval-overlay">
+  <div class="approval-box">
+    <h2>Approve Remediation?</h2>
+    <div class="preview" id="approval-preview">
+      <b>Loading fix details...</b>
+    </div>
+    <div class="actions">
+      <button class="btn approve" onclick="confirmApprove()">Approve & Fix</button>
+      <button class="btn deny" onclick="closeApproval()">Cancel</button>
     </div>
   </div>
 </div>
@@ -142,188 +179,189 @@
 <script>
 const AGENT = '';
 let currentIncident = null;
-let logSequence = 0;
+let flowProgress = 0;
+let flowTimer = null;
 
 function ts() { return new Date().toLocaleTimeString('en-US',{hour12:false}); }
 
-function addLog(container, msg, cls) {
+function addLog(msg, cls) {
   const div = document.createElement('div');
-  div.className = 'line' + (cls ? ' '+cls : '');
-  div.innerHTML = `<span class="ts">${ts()}</span> ${msg}`;
-  const el = document.getElementById(container);
+  div.className = 'line' + (cls?' '+cls:'');
+  div.innerHTML = '<span class="ts">'+ts()+'</span> '+msg;
+  const el = document.getElementById('agent-log');
   el.insertBefore(div, el.firstChild);
   if (el.children.length > 80) el.lastChild.remove();
 }
 
-let lastActiveIncident = null;
-let lastTriageSeen = false;
-let lastInvestigateSeen = false;
-let lastRemediateSeen = false;
-
-async function poll() {
-  try {
-    const r = await fetch(`${AGENT}/api/dashboard/state`);
-    const d = await r.json();
-    updateUI(d);
-  } catch(e) {}
-}
-
-function updateUI(d) {
-  const svc = d.service||{};
-  const incState = d.incident;
-  const pending = d.pending_approval;
-  const detail = d.incident_detail||{};
-
-  // Metrics
-  const errPct = ((svc.error_rate||0)*100).toFixed(1);
-  const el = (id,v,cls) => {const e=document.getElementById(id);e.textContent=v;e.className='val '+(cls||'');};
-  el('m-error', errPct+'%', parseFloat(errPct)>10?'bad':parseFloat(errPct)>0?'warn':'good');
-  el('m-pool', svc.pool_size||'—', (svc.pool_size||20)<5?'bad':'good');
-  el('m-avail', svc.pool_available||'—', (svc.pool_available||0)===0?'bad':'good');
-  el('m-total', svc.total_requests||0);
-  el('m-latency', (svc.latency_p50_ms||0)+'ms');
-  el('m-errors', svc.error_count||0, (svc.error_count||0)>0?'bad':'good');
-
-  // Global status
-  const dot = document.getElementById('global-dot');
-  const gs = document.getElementById('global-status');
-  if (pending) {
-    dot.className = 'status-dot active'; gs.textContent = 'WAITING APPROVAL';
-    document.getElementById('btn-trigger').disabled = true;
-    document.getElementById('btn-approve').disabled = false;
-    document.getElementById('btn-deny').disabled = false;
-  } else if (incState && incState !== 'RESOLVED' && incState !== 'WAITING_APPROVAL' && incState !== 'SUPPRESSED') {
-    dot.className = 'status-dot active'; gs.textContent = incState;
-    document.getElementById('btn-trigger').disabled = true;
-    document.getElementById('btn-approve').disabled = true;
-    document.getElementById('btn-deny').disabled = true;
-  } else {
-    dot.className = 'status-dot idle'; gs.textContent = 'Idle — Ready';
-    document.getElementById('btn-trigger').disabled = false;
-    document.getElementById('btn-approve').disabled = true;
-    document.getElementById('btn-deny').disabled = true;
-  }
-
-  // Flow steps
-  const stepMap = {RECEIVED:3,TRIAGING:4,INVESTIGATING:5,REMEDIATING:6,WAITING_APPROVAL:7,APPROVED:8,EXECUTING:8,RESOLVED:8};
-  const step = stepMap[incState]||0;
+function setFlowStep(step) {
   document.querySelectorAll('.flow-step').forEach(el => {
     const s = parseInt(el.dataset.step);
-    el.classList.remove('done','current');
+    el.classList.remove('active','done');
     if (s < step) el.classList.add('done');
-    if (s === step) el.classList.add('current');
+    if (s === step) el.classList.add('active');
   });
+}
 
-  // New incident detected
-  if (pending && pending !== lastActiveIncident) {
-    lastActiveIncident = pending;
-    lastTriageSeen = false;
-    lastInvestigateSeen = false;
-    lastRemediateSeen = false;
-  }
+function showApproval() {
+  const box = document.getElementById('approval-overlay');
+  const preview = document.getElementById('approval-preview');
+  box.classList.add('visible');
 
-  // Log activity as it happens
-  const stateHistory = detail.state_history || [];
-  if (stateHistory.length > 0) {
-    const lastState = stateHistory[stateHistory.length-1];
-    const stateName = lastState.state;
-
-    if (stateName === 'TRIAGING' && !lastTriageSeen) {
-      lastTriageSeen = true;
-      addLog('agent-log', 'STATE → TRIAGING — Calling Qwen for severity assessment...', 'event');
-    }
-    if (stateName === 'INVESTIGATING' && !lastInvestigateSeen) {
-      lastInvestigateSeen = true;
-      addLog('agent-log', 'STATE → INVESTIGATING — Qwen calling tools: get_recent_commits(), get_commit_diff(), get_health()', 'event');
-    }
-    if (stateName === 'REMEDIATING' && !lastRemediateSeen) {
-      lastRemediateSeen = true;
-      addLog('agent-log', 'STATE → REMEDIATING — Qwen generating fix plan...', 'event');
-    }
-  }
-
-  // Qwen analysis
-  if (detail.root_cause || detail.remediation) {
-    const box = document.getElementById('qwen-box');
-    box.style.display = 'block';
-    const rc = detail.root_cause || {};
-    const rem = detail.remediation || {};
-    document.getElementById('qwen-content').innerHTML = `
-      <b>Severity:</b> ${detail.severity||'—'}<br/>
-      <b>Triage:</b> ${detail.triage_summary||'—'}<br/>
-      <b>Root Cause:</b> ${rc.summary||'Analyzing...'}<br/>
-      <b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%<br/>
-      <b>Evidence:</b> ${(rc.evidence||[]).map(e=>'• '+e).join('<br/>')||'—'}<br/>
-      <b>Proposed Fix:</b> ${rem.action||'—'} (Risk: ${rem.risk||'—'})
+  fetch(`${AGENT}/api/dashboard/state`).then(r=>r.json()).then(d => {
+    const det = d.incident_detail || {};
+    const rc = det.root_cause || {};
+    const rem = det.remediation || {};
+    preview.innerHTML = `
+      <b>Incident:</b> ${det.incident_id || currentIncident}<br/>
+      <b>Severity:</b> <span style="color:var(--red)">${det.severity || '—'}</span><br/>
+      <b>Root Cause:</b> ${rc.summary || '—'}<br/>
+      <b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%<br/><br/>
+      <b style="color:var(--green)">Proposed Fix:</b> ${rem.action || '—'}<br/>
+      <b>Risk:</b> ${rem.risk || '—'}<br/>
+      <b>Rollback Plan:</b> ${rem.rollback_plan || '—'}<br/><br/>
+      <span style="color:var(--orange)">This will restore the connection pool from 0 → 20 immediately.</span>
     `;
-  }
+  });
 }
 
-async function triggerIncident() {
-  addLog('agent-log', 'TRIGGER → Reducing pool_size from 20 to 1 on demo service...', 'warn');
-  addLog('service-log', 'ACTION → Resizing connection pool to 1 (will cause exhaustion)', 'warn');
-  addLog('github-log', 'SIMULATED → Bad config commit pushed: pool_size changed 20 → 1', 'warn');
-
-  await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
-  addLog('service-log', 'RELOAD → Demo service reloaded with pool_size=1', 'warn');
-  addLog('agent-log', 'WATCHER → Commit detected: config.yaml changed, triggering reload', 'event');
-
-  // Reset flow
-  document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('done','current'));
-  document.getElementById('qwen-box').style.display = 'none';
-  lastActiveIncident = null;
-  lastTriageSeen = false;
-  lastInvestigateSeen = false;
-  lastRemediateSeen = false;
+function closeApproval() {
+  document.getElementById('approval-overlay').classList.remove('visible');
 }
 
-async function approveIncident() {
+async function confirmApprove() {
+  closeApproval();
+  addLog('HUMAN → Approved fix', 'ok');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Executing fix...</b><br/>Restoring pool to 20';
+
   if (!currentIncident) {
     const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
     currentIncident = d.pending_approval;
   }
-  if (!currentIncident) return;
-  addLog('agent-log', `APPROVE → Human approved fix for ${currentIncident}`, 'ok');
-  addLog('service-log', 'RECOVER → Restoring pool_size to 20...', 'ok');
+  if (currentIncident) {
+    await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
+  }
+  addLog('FIX → Pool restored to 20, service recovered', 'ok');
+  setFlowStep(7);
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Service Recovered!</b><br/>Pool: 20/20, Error rate: 0%';
+  document.getElementById('global-dot').className = 'status-dot resolved';
+  document.getElementById('global-status').textContent = 'Resolved';
 
-  const r = await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
-  const d = await r.json();
-  addLog('agent-log', `RESOLVED → Incident ${currentIncident} closed`, 'ok');
-  addLog('github-log', 'REVERT → Fix commit pushed: pool_size restored to 20', 'ok');
-  addLog('service-log', 'HEALTHY → Pool: 20/20, Error rate: 0%', 'ok');
-  document.getElementById('qwen-box').style.display = 'none';
+  document.getElementById('btn-trigger').disabled = false;
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
+}
+
+async function triggerIncident() {
+  addLog('TRIGGER → Reducing pool from 20 to 0...', 'event');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Triggering incident...</b><br/>Setting connection pool to 0 — all requests will fail with 503.';
+
+  await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
+  addLog('TRIGGER → Pool now at 0 — errors flooding in', 'event');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Pool exhausted!</b><br/>Error rate climbing. Agent monitoring...';
+
+  // Animate steps with delays
+  setFlowStep(0);
+  await delay(800);  setFlowStep(1);
+  addLog('WATCHER → Detected config change, reloading service', 'event');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--orange)">Agent detected commit</b><br/>Reloading demo service with pool_size=0...';
+  await delay(1500); setFlowStep(2);
+  addLog('MONITOR → Error rate 100% exceeds 10% threshold — creating incident', 'event');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Incident Created!</b><br/>Error rate: 100%. Severity: CRITICAL.';
+  await delay(3000); setFlowStep(3);
+  addLog('Qwen TRIAGE → Assessing severity...', 'qwen');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Triage</b><br/>Analyzing alert severity and blast radius...';
+  await delay(3000); setFlowStep(4);
+  addLog('Qwen INVESTIGATE → Calling tools: get_recent_commits, get_commit_diff, get_health', 'qwen');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Investigating</b><br/>Checking recent commits, health status, and config...';
+  await delay(6000); setFlowStep(5);
+  addLog('Qwen REMEDIATE → Generating fix plan', 'qwen');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--purple)">Qwen Remediating</b><br/>Proposing fix based on root cause analysis...';
+  await delay(3000); setFlowStep(6);
+  addLog('STATE → WAITING APPROVAL — human review required', 'event');
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--orange)">Review Required</b><br/>Qwen has proposed a fix. Click <b>Review & Approve</b> to see details.';
+
+  document.getElementById('global-dot').className = 'status-dot active';
+  document.getElementById('global-status').textContent = 'WAITING APPROVAL';
+  document.getElementById('btn-approve').disabled = false;
+  document.getElementById('btn-deny').disabled = false;
+  document.getElementById('btn-trigger').disabled = true;
 }
 
 async function denyIncident() {
   const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
   const inc = d.pending_approval;
   if (!inc) return;
-  addLog('agent-log', `DENY → Human denied fix for ${inc}`, 'err');
+  addLog('HUMAN → Denied fix for '+inc, 'err');
   await fetch(`${AGENT}/api/incidents/${inc}/deny`, {method:'POST'});
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--red)">Fix Denied</b><br/>Manual override required.';
+  resetUI();
 }
 
 async function resetAll() {
   await fetch(`${AGENT}/api/dashboard/reset`, {method:'POST'});
-  document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('done','current'));
-  document.getElementById('qwen-box').style.display = 'none';
-  lastActiveIncident = null;
+  resetUI();
+  addLog('RESET → All state cleared, pool restored to 20', 'ok');
+}
+
+function resetUI() {
+  setFlowStep(-1);
+  document.getElementById('qwen-panel').classList.remove('visible');
+  document.getElementById('global-dot').className = 'status-dot idle';
+  document.getElementById('global-status').textContent = 'Idle — Ready';
   document.getElementById('btn-trigger').disabled = false;
   document.getElementById('btn-approve').disabled = true;
   document.getElementById('btn-deny').disabled = true;
-  addLog('agent-log', 'RESET → All state cleared, system ready', 'ok');
+  document.getElementById('action-context').innerHTML = 'System is idle — monitoring demo service every 5 seconds.<br/><br/>Click <b style="color:var(--red)">Trigger Incident</b> to simulate a bad config deploy that breaks the service.';
+  currentIncident = null;
+  flowProgress = 0;
 }
 
-// Also sync pending incident for approve button
-async function syncPending() {
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Background poll for metrics + Qwen data
+async function bgPoll() {
   try {
     const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
-    currentIncident = d.pending_approval || null;
+    const svc = d.service || {};
+
+    const er = ((svc.error_rate||0)*100).toFixed(1);
+    document.getElementById('m-status').textContent = svc.status||'—';
+    document.getElementById('m-status').className = 'val '+(svc.status==='healthy'?'ok':'bad');
+    document.getElementById('m-pool').textContent = svc.pool_size||'—';
+    document.getElementById('m-pool').className = 'val '+((svc.pool_size||20)<2?'bad':'ok');
+    document.getElementById('m-avail').textContent = svc.pool_available||'—';
+    document.getElementById('m-avail').className = 'val '+((svc.pool_available||0)===0?'bad':'ok');
+    document.getElementById('m-error').textContent = er+'%';
+    document.getElementById('m-error').className = 'val '+(parseFloat(er)>10?'bad':(parseFloat(er)>0?'warn':'ok'));
+    document.getElementById('m-total').textContent = svc.total_requests||'—';
+    document.getElementById('m-latency').textContent = (svc.latency_p50_ms||0)+'ms';
+
+    // Update Qwen panel if we have incident detail
+    const det = d.incident_detail;
+    if (det && det.root_cause && flowProgress >= 5) {
+      const panel = document.getElementById('qwen-panel');
+      panel.classList.add('visible');
+      const rc = det.root_cause || {};
+      const rem = det.remediation || {};
+      document.getElementById('qwen-content').innerHTML = `
+        <div class="field"><b>Severity:</b> ${det.severity||'—'}</div>
+        <div class="field"><b>Triage:</b> ${det.triage_summary||'—'}</div>
+        <div class="field"><b>Root Cause:</b> ${rc.summary||'—'}</div>
+        <div class="field"><b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%</div>
+        <div class="field"><b>Evidence:</b></div>
+        ${(rc.evidence||[]).map(e=>'<div class="evidence">• '+e+'</div>').join('')}
+        <div class="field" style="margin-top:8px"><b>Proposed Fix:</b> ${rem.action||'—'}</div>
+        <div class="field"><b>Risk:</b> ${rem.risk||'—'}</div>
+      `;
+    }
+
+    // Sync pending incident
+    if (d.pending_approval) currentIncident = d.pending_approval;
   } catch(e) {}
 }
 
-setInterval(() => { poll(); syncPending(); }, 1500);
-poll();
-syncPending();
+setInterval(bgPoll, 1500);
+bgPoll();
 </script>
 </body>
 </html>

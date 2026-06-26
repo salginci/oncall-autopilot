@@ -4,60 +4,65 @@
 <meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
-  body{background:#0d1117;margin:30px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
-  h1{color:#c9d1d9;text-align:center;font-size:24px;margin-bottom:5px;}
-  .sub{color:#8b949e;font-size:12px;text-align:center;margin-bottom:15px;}
-  .stacks{display:flex;gap:8px;justify-content:center;margin:10px 0;flex-wrap:wrap;}
-  .stack{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 14px;color:#c9d1d9;font-size:11px;}
+  body{background:#0d1117;margin:20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+  h1{color:#c9d1d9;text-align:center;font-size:22px;margin-bottom:3px;}
+  .sub{color:#8b949e;font-size:11px;text-align:center;margin-bottom:12px;}
+  .row{display:flex;gap:20px;justify-content:center;}
+  .col{flex:1;max-width:900px;}
+  .col h2{color:#58a6ff;font-size:14px;text-align:center;margin:15px 0 8px;}
+  .stacks{display:flex;gap:6px;justify-content:center;margin:8px 0;flex-wrap:wrap;}
+  .stack{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:4px 10px;color:#c9d1d9;font-size:10px;}
   .stack b{color:#58a6ff;}
 </style>
 </head>
 <body>
-<h1>On-Call Autopilot Architecture</h1>
-<div class="sub">Track 4: Autopilot Agent - Global AI Hackathon Series with Qwen Cloud</div>
+<h1>On-Call Autopilot -- Architecture</h1>
+<div class="sub">Track 4: Autopilot Agent | Global AI Hackathon Series with Qwen Cloud</div>
 
 <div class="stacks">
-  <div class="stack"><b>AI</b> Qwen Cloud (qwen-plus)</div>
-  <div class="stack"><b>Runtime</b> Python 3.11 + FastAPI + Uvicorn</div>
+  <div class="stack"><b>AI</b> Qwen Cloud qwen-plus</div>
+  <div class="stack"><b>Runtime</b> Python 3.11 + FastAPI</div>
   <div class="stack"><b>State</b> ApsaraDB Redis</div>
-  <div class="stack"><b>Logging</b> SLS (JSON traces)</div>
+  <div class="stack"><b>Logging</b> SLS JSON Traces</div>
   <div class="stack"><b>Deploy</b> Docker Compose on ECS</div>
-  <div class="stack"><b>CI/CD</b> GitHub + Git</div>
+  <div class="stack"><b>CI/CD</b> GitHub</div>
   <div class="stack"><b>CLI</b> Typer + Rich</div>
 </div>
 
+<div class="row">
+<div class="col">
+<h2>Infrastructure Topology</h2>
 <pre class="mermaid">
-flowchart LR
-
+flowchart TB
     subgraph EXT["External"]
-        GH["GitHub Repo\nsalginci/oncall-autopilot\nPush bad config commit"]
-        HUMAN["Human Operator\nocli CLI\nApprove or deny fixes"]
+        GH[("GitHub\nPush commit")]
+        HUMAN["Human Operator\nocli CLI"]
     end
 
     subgraph AC["Alibaba Cloud"]
         subgraph ECS["ECS Instance"]
-            AGENT["On-Call Autopilot Agent\nPort 8080\nState Machine + MCP Tools\nFastAPI + Uvicorn"]
-            DEMO["Demo Service\nPort 3000\nSimulated Microservice\nFastAPI + asyncio"]
+            AGENT["Agent :8080\nState Machine\nMCP Tools"]
+            DEMO["Demo Service :3000\nConfig pool_size\n/metrics /health"]
         end
-        REDIS[("ApsaraDB Redis\nIncident state store\nredis-py async")]
-        SLS[("SLS Logging\nStructured JSON traces\nTrace IDs")]
+        REDIS[("Redis\nState store")]
+        SLS[("SLS\nLogging")]
     end
 
     subgraph QWEN["Qwen Cloud"]
-        API["Qwen API (qwen-plus)\nTriage Agent\nInvestigate Agent\nRemediate Agent\nOpenAI SDK compatible"]
+        API["Qwen API\nTriage\nInvestigate\nRemediate"]
     end
 
-    GH -->|"1. Bad commit\npool_size: 20 to 1"| AGENT
-    AGENT -->|"2. Poll /metrics\n+ /health every 5s"| DEMO
-    AGENT -->|"3. Call Qwen\nfor reasoning"| API
-    API -->|"4. Analysis\n+ fix plan"| AGENT
-    AGENT -->|"5. Request\napproval"| HUMAN
-    HUMAN -->|"6. Approve\nor Deny"| AGENT
-    AGENT -->|"7. Persist\nstate"| REDIS
-    AGENT -->|"8. Log events\n(JSON)"| SLS
-    DEMO -->|"Request traces"| SLS
-    AGENT -->|"9a. Revert\ncommit + push"| GH
-    AGENT -->|"9b. Reload\nconfig"| DEMO
+    GH --> AGENT
+    AGENT --> DEMO
+    AGENT --> API
+    API --> AGENT
+    AGENT --> HUMAN
+    HUMAN --> AGENT
+    AGENT --> REDIS
+    AGENT --> SLS
+    DEMO --> SLS
+    AGENT --> GH
+    AGENT --> DEMO
 
     style EXT fill:#0d1117,stroke:#30363d,color:#c9d1d9
     style AC fill:#0d1117,stroke:#1a56db,color:#c9d1d9
@@ -70,19 +75,52 @@ flowchart LR
     style SLS fill:#1b2838,stroke:#8b949e,color:#f0f6fc
     style HUMAN fill:#1b2838,stroke:#f0883e,color:#f0f6fc
     style GH fill:#161b22,stroke:#30363d,color:#f0f6fc
-
-    linkStyle 0 stroke:#f85149,stroke-width:3px
-    linkStyle 1 stroke:#f0883e,stroke-width:2px
-    linkStyle 2 stroke:#a371f7,stroke-width:2px
-    linkStyle 3 stroke:#a371f7,stroke-width:2px
-    linkStyle 4 stroke:#d29922,stroke-width:2px
-    linkStyle 5 stroke:#3fb950,stroke-width:2px
-    linkStyle 6 stroke:#d29922,stroke-width:2px
-    linkStyle 7 stroke:#8b949e,stroke-width:1px
-    linkStyle 8 stroke:#8b949e,stroke-width:1px
-    linkStyle 9 stroke:#3fb950,stroke-width:2px
-    linkStyle 10 stroke:#58a6ff,stroke-width:2px
 </pre>
+</div>
+
+<div class="col">
+<h2>Incident Lifecycle (Step by Step)</h2>
+<pre class="mermaid">
+flowchart TD
+    A["STEP 1<br/>Bad commit pushed<br/>pool_size: 20 to 1"] -->|trigger| B["STEP 2<br/>Agent detects<br/>via GitHub watcher"]
+    B -->|POST /admin/reload| C["STEP 3<br/>Demo Service reloads<br/>pool_size=1, 503 errors"]
+    C -->|error rate &gt; 10%| D["STEP 4<br/>Agent creates INCIDENT<br/>State: RECEIVED"]
+    D -->|auto| E["STEP 5<br/>Qwen TRIAGE<br/>Severity: CRITICAL"]
+    E -->|severity &gt;= MEDIUM| F["STEP 6<br/>Qwen INVESTIGATE<br/>Tool calls: get_commits, get_diff, get_health"]
+    F -->|root cause found<br/>confidence 0.98| G["STEP 7<br/>Qwen REMEDIATE<br/>Propose: revert commit"]
+    G -->|await| H["STEP 8<br/>WAITING APPROVAL<br/>Human reviews fix plan"]
+    H -->|approve| I["STEP 9<br/>EXECUTE<br/>Git revert + push + reload"]
+    I -->|health OK| J["STEP 10<br/>RESOLVED<br/>Postmortem generated"]
+    H -->|deny| K["STEP 9b<br/>OVERRIDE<br/>Manual fix applied"]
+    K --> J
+    E -->|severity = LOW| L["SUPPRESSED<br/>No action"]
+
+    style A fill:#1b2838,stroke:#f85149,color:#f0f6fc
+    style B fill:#1b2838,stroke:#58a6ff,color:#f0f6fc
+    style C fill:#1b2838,stroke:#f0883e,color:#f0f6fc
+    style D fill:#1b2838,stroke:#f85149,color:#f0f6fc
+    style E fill:#2d1b69,stroke:#a371f7,color:#f0f6fc
+    style F fill:#2d1b69,stroke:#a371f7,color:#f0f6fc
+    style G fill:#2d1b69,stroke:#a371f7,color:#f0f6fc
+    style H fill:#1b2838,stroke:#d29922,color:#f0f6fc
+    style I fill:#1b2838,stroke:#3fb950,color:#f0f6fc
+    style J fill:#1b2838,stroke:#3fb950,color:#f0f6fc
+    style K fill:#1b2838,stroke:#f0883e,color:#f0f6fc
+    style L fill:#1b2838,stroke:#8b949e,color:#f0f6fc
+
+    linkStyle 0 stroke:#f85149,stroke-width:2px
+    linkStyle 1 stroke:#f0883e,stroke-width:2px
+    linkStyle 2 stroke:#f85149,stroke-width:2px
+    linkStyle 3 stroke:#a371f7,stroke-width:2px
+    linkStyle 4 stroke:#a371f7,stroke-width:2px
+    linkStyle 5 stroke:#a371f7,stroke-width:2px
+    linkStyle 6 stroke:#a371f7,stroke-width:2px
+    linkStyle 7 stroke:#d29922,stroke-width:2px
+    linkStyle 8 stroke:#3fb950,stroke-width:2px
+    linkStyle 9 stroke:#3fb950,stroke-width:2px
+</pre>
+</div>
+</div>
 
 <script>
   mermaid.initialize({
@@ -91,9 +129,9 @@ flowchart LR
     securityLevel: 'loose',
     themeVariables: {
       fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif',
-      fontSize: '14px',
+      fontSize: '13px',
     },
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 15 },
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 10 },
   });
 </script>
 </body>

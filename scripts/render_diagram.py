@@ -21,7 +21,7 @@ with sync_playwright() as p:
             print(f"Saved SVG: {output_file} ({output_file.stat().st_size} bytes)")
 
     full_output = output_file.parent / "architecture_full.png"
-    page.set_viewport_size({"width": 1600, "height": 1200})
+    page.set_viewport_size({"width": 1920, "height": 1400})
     page.screenshot(path=str(full_output), full_page=True)
     print(f"Saved full: {full_output} ({full_output.stat().st_size} bytes)")
 

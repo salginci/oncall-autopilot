@@ -4,18 +4,17 @@
 <meta charset="utf-8">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
-  body { background:#0d1117; margin:30px; font-family:-apple-system,BlinkMacSystemFont,sans-serif; }
-  h1 { color:#c9d1d9; text-align:center; font-size:24px; margin-bottom:20px; }
-  .legend { color:#8b949e; font-size:11px; text-align:center; margin-bottom:10px; }
-  .stacks { display:flex; gap:8px; justify-content:center; margin:15px 0; flex-wrap:wrap; }
-  .stack { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:6px 14px; color:#c9d1d9; font-size:11px; }
-  .stack b { color:#58a6ff; }
-  .mermaid { display:flex; justify-content:center; }
+  body{background:#0d1117;margin:30px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+  h1{color:#c9d1d9;text-align:center;font-size:24px;margin-bottom:5px;}
+  .sub{color:#8b949e;font-size:12px;text-align:center;margin-bottom:15px;}
+  .stacks{display:flex;gap:8px;justify-content:center;margin:10px 0;flex-wrap:wrap;}
+  .stack{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:6px 14px;color:#c9d1d9;font-size:11px;}
+  .stack b{color:#58a6ff;}
 </style>
 </head>
 <body>
-<h1>On-Call Autopilot &mdash; Architecture</h1>
-<div class="legend">Track 4: Autopilot Agent &mdash; Global AI Hackathon Series with Qwen Cloud</div>
+<h1>On-Call Autopilot Architecture</h1>
+<div class="sub">Track 4: Autopilot Agent - Global AI Hackathon Series with Qwen Cloud</div>
 
 <div class="stacks">
   <div class="stack"><b>AI</b> Qwen Cloud (qwen-plus)</div>
@@ -24,61 +23,53 @@
   <div class="stack"><b>Logging</b> SLS (JSON traces)</div>
   <div class="stack"><b>Deploy</b> Docker Compose on ECS</div>
   <div class="stack"><b>CI/CD</b> GitHub + Git</div>
-  <div class="stack"><b>CLI</b> Typer + Rich (Python)</div>
+  <div class="stack"><b>CLI</b> Typer + Rich</div>
 </div>
 
 <pre class="mermaid">
 flowchart LR
-    subgraph EXTERNAL["&nbsp;&nbsp;&nbsp;&nbsp;External Triggers&nbsp;&nbsp;&nbsp;&nbsp;"]
-        direction TB
-        GH["<b>GitHub</b><br/><i>salginci/oncall-autopilot</i><br/>Push bad config commit<br/>━━━━━━━━━━<br/>Tech: Git + GitHub API"]
-        HUMAN("<b>Human Operator</b><br/><i>Human-in-the-Loop</i><br/>Approve or deny fixes<br/>━━━━━━━━━━<br/>Tech: ocli CLI (Typer)"]
+
+    subgraph EXT["External"]
+        GH["GitHub Repo\nsalginci/oncall-autopilot\nPush bad config commit"]
+        HUMAN["Human Operator\nocli CLI\nApprove or deny fixes"]
     end
 
-    subgraph ALIBABA["&nbsp;&nbsp;&nbsp;&nbsp;Alibaba Cloud&nbsp;&nbsp;&nbsp;&nbsp;"]
-        direction TB
-        subgraph ECS["&nbsp;&nbsp;&nbsp;&nbsp;ECS Instance&nbsp;&nbsp;&nbsp;&nbsp;"]
-            direction LR
-            subgraph AGENT_BOX["&nbsp;&nbsp;&nbsp;&nbsp;On-Call Autopilot Agent&nbsp;&nbsp;&nbsp;&nbsp;"]
-                direction TB
-                FSM["<b>State Machine</b><br/>IDLE → RECEIVED<br/>→ TRIAGING<br/>→ INVESTIGATING<br/>→ REMEDIATING<br/>→ WAITING_APPROVAL<br/>→ RESOLVED"]
-                TOOLS["<b>MCP Tools</b><br/>GitHub API<br/>Health Check<br/>Metric Query<br/>Config Reload"]
-            end
-            DEMO["<b>Demo Service</b><br/>Simulated Microservice<br/>GET /health · /metrics<br/>POST /admin/reload<br/>━━━━━━━━━━<br/>Tech: FastAPI + asyncio<br/>Config: config.yaml (mounted)"]
+    subgraph AC["Alibaba Cloud"]
+        subgraph ECS["ECS Instance"]
+            AGENT["On-Call Autopilot Agent\nPort 8080\nState Machine + MCP Tools\nFastAPI + Uvicorn"]
+            DEMO["Demo Service\nPort 3000\nSimulated Microservice\nFastAPI + asyncio"]
         end
-        REDIS[("<b>ApsaraDB Redis</b><br/>Incident State Store<br/>Persists FSM state<br/>━━━━━━━━━━<br/>Tech: Redis 7<br/>Client: redis-py (async)")]
-        SLS[("<b>SLS Logging</b><br/>Simple Log Service<br/>Structured JSON traces<br/>━━━━━━━━━━<br/>Trace IDs across all components")]
+        REDIS[("ApsaraDB Redis\nIncident state store\nredis-py async")]
+        SLS[("SLS Logging\nStructured JSON traces\nTrace IDs")]
     end
 
-    subgraph AI["&nbsp;&nbsp;&nbsp;&nbsp;Qwen Cloud&nbsp;&nbsp;&nbsp;&nbsp;"]
-        API["<b>Qwen API</b> (qwen-plus)<br/>━━━━━━━━━━<br/><i>Triage Agent</i><br/>Severity + impact analysis<br/><br/><i>Investigate Agent</i><br/>Root cause via function calling<br/><br/><i>Remediate Agent</i><br/>Fix plan + risk assessment<br/>━━━━━━━━━━<br/>Tech: OpenAI SDK<br/>Endpoint: dashscope-intl"]
+    subgraph QWEN["Qwen Cloud"]
+        API["Qwen API (qwen-plus)\nTriage Agent\nInvestigate Agent\nRemediate Agent\nOpenAI SDK compatible"]
     end
 
-    GH -->|"1. Bad commit<br/>(pool_size: 20→1)"| FSM
-    FSM -->|"2. Poll every 5s<br/>GET /metrics + /health"| DEMO
-    FSM -->|"3. Invoke Qwen<br/>for reasoning"| API
-    API -->|"4. Analysis result<br/>(JSON)"| FSM
-    FSM -->|"5. Request<br/>human approval"| HUMAN
-    HUMAN -->|"6. Approve<br/>or Deny"| FSM
-    FSM -->|"7. Persist<br/>incident state"| REDIS
-    FSM -->|"8. Emit structured<br/>logs (JSON)"| SLS
-    DEMO -->|"Request metrics<br/>+ traces"| SLS
-    FSM -->|"9a. Git revert<br/>+ push"| GH
-    FSM -->|"9b. Reload<br/>config"| DEMO
+    GH -->|"1. Bad commit\npool_size: 20 to 1"| AGENT
+    AGENT -->|"2. Poll /metrics\n+ /health every 5s"| DEMO
+    AGENT -->|"3. Call Qwen\nfor reasoning"| API
+    API -->|"4. Analysis\n+ fix plan"| AGENT
+    AGENT -->|"5. Request\napproval"| HUMAN
+    HUMAN -->|"6. Approve\nor Deny"| AGENT
+    AGENT -->|"7. Persist\nstate"| REDIS
+    AGENT -->|"8. Log events\n(JSON)"| SLS
+    DEMO -->|"Request traces"| SLS
+    AGENT -->|"9a. Revert\ncommit + push"| GH
+    AGENT -->|"9b. Reload\nconfig"| DEMO
 
-    style EXTERNAL fill:#0d1117,stroke:#30363d,color:#c9d1d9
-    style ALIBABA fill:#0d1117,stroke:#1a56db,color:#c9d1d9
+    style EXT fill:#0d1117,stroke:#30363d,color:#c9d1d9
+    style AC fill:#0d1117,stroke:#1a56db,color:#c9d1d9
     style ECS fill:#0d1117,stroke:#2d4a7a,color:#c9d1d9
-    style AI fill:#0d1117,stroke:#6e40c9,color:#c9d1d9
-    style AGENT_BOX fill:#0d1117,stroke:#58a6ff,color:#c9d1d9
-    style FSM fill:#1b2838,stroke:#58a6ff,color:#f0f6fc
-    style TOOLS fill:#1b2838,stroke:#58a6ff,color:#f0f6fc
+    style QWEN fill:#0d1117,stroke:#6e40c9,color:#c9d1d9
+    style AGENT fill:#1b2838,stroke:#58a6ff,color:#f0f6fc
     style DEMO fill:#1b2838,stroke:#3fb950,color:#f0f6fc
     style API fill:#2d1b69,stroke:#a371f7,color:#f0f6fc
     style REDIS fill:#1b2838,stroke:#d29922,color:#f0f6fc
     style SLS fill:#1b2838,stroke:#8b949e,color:#f0f6fc
     style HUMAN fill:#1b2838,stroke:#f0883e,color:#f0f6fc
-    style GH fill:#1b1f23,stroke:#30363d,color:#f0f6fc
+    style GH fill:#161b22,stroke:#30363d,color:#f0f6fc
 
     linkStyle 0 stroke:#f85149,stroke-width:3px
     linkStyle 1 stroke:#f0883e,stroke-width:2px
@@ -97,11 +88,12 @@ flowchart LR
   mermaid.initialize({
     startOnLoad: true,
     theme: 'dark',
+    securityLevel: 'loose',
     themeVariables: {
       fontFamily: '-apple-system,BlinkMacSystemFont,sans-serif',
       fontSize: '14px',
     },
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 20 },
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis', padding: 15 },
   });
 </script>
 </body>

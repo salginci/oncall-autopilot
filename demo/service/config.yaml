@@ -1,6 +1,6 @@
 database:
   max_overflow: 5
-  pool_size: 2
+  pool_size: 1
   timeout_seconds: 30
 logging:
   level: INFO

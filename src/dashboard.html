@@ -73,6 +73,10 @@
   .status-dot.active{background:var(--red);animation:blink 1s infinite;}
   .status-dot.resolved{background:var(--green);}
   @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  a.ext{color:var(--blue);text-decoration:none;font-size:11px;border-bottom:1px dashed var(--blue);}
+  a.ext:hover{color:#fff;border-bottom-color:#fff;}
+  a.ext::after{content:' ↗';font-size:9px;}
 </style>
 </head>
 <body>
@@ -81,6 +85,9 @@
   <span class="status-dot" id="global-dot"></span>
   <span style="font-size:12px;color:var(--muted);" id="global-status">Initializing...</span>
   <span style="flex:1"></span>
+  <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank" style="font-size:12px">GitHub Repo</a>
+  <a class="ext" href="http://localhost:3000/health" target="_blank" style="font-size:12px">Demo /health</a>
+  <a class="ext" href="http://localhost:3000/metrics" target="_blank" style="font-size:12px">Demo /metrics</a>
   <button class="btn trigger" id="btn-trigger" onclick="triggerIncident()">Trigger Incident</button>
   <button class="btn approve" id="btn-approve" disabled onclick="showApproval()">Review & Approve</button>
   <button class="btn deny" id="btn-deny" disabled onclick="denyIncident()">Deny</button>
@@ -211,15 +218,27 @@ function showApproval() {
     const det = d.incident_detail || {};
     const rc = det.root_cause || {};
     const rem = det.remediation || {};
+
+    // Make commit SHAs clickable
+    let summary = rc.summary || '—';
+    const shaMatch = summary.match(/\b([a-f0-9]{7,40})\b/gi);
+    if (shaMatch) {
+      shaMatch.forEach(sha => {
+        summary = summary.replace(sha, `<a class="ext" href="https://github.com/salginci/oncall-autopilot/commit/${sha}" target="_blank">${sha.substring(0,7)}</a>`);
+      });
+    }
+
     preview.innerHTML = `
       <b>Incident:</b> ${det.incident_id || currentIncident}<br/>
       <b>Severity:</b> <span style="color:var(--red)">${det.severity || '—'}</span><br/>
-      <b>Root Cause:</b> ${rc.summary || '—'}<br/>
+      <b>Root Cause:</b> ${summary}<br/>
       <b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%<br/><br/>
       <b style="color:var(--green)">Proposed Fix:</b> ${rem.action || '—'}<br/>
       <b>Risk:</b> ${rem.risk || '—'}<br/>
       <b>Rollback Plan:</b> ${rem.rollback_plan || '—'}<br/><br/>
-      <span style="color:var(--orange)">This will restore the connection pool from 0 → 20 immediately.</span>
+      <span style="color:var(--orange)">This will restore the connection pool from 0 → 20 immediately.</span><br/><br/>
+      <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">Verify on GitHub</a><br/>
+      <a class="ext" href="http://localhost:3000/metrics" target="_blank">Live metrics</a>
     `;
   });
 }
@@ -260,7 +279,11 @@ async function triggerIncident() {
     <span style="color:var(--muted)">Changed file:</span> <b>demo/service/config.yaml</b><br/>
     <span style="color:var(--red)">- pool_size: 20</span><br/>
     <span style="color:var(--green)">+ pool_size: 0</span><br/><br/>
-    <span style="color:var(--orange)">This will cause all DB connections to fail (503).</span>
+    <span style="color:var(--orange)">This will cause all DB connections to fail (503).</span><br/><br/>
+    <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank">View repo on GitHub</a><br/>
+    <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">View commit history</a><br/>
+    <a class="ext" href="http://localhost:3000/health" target="_blank">Demo service /health</a><br/>
+    <a class="ext" href="http://localhost:3000/metrics" target="_blank">Demo service /metrics</a>
   `;
 
   await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
@@ -335,16 +358,46 @@ async function triggerIncident() {
     const rem = qwenData.remediation || {};
     const panel = document.getElementById('qwen-panel');
     panel.classList.add('visible');
+
+    // Make commit SHAs clickable in the analysis
+    let evidenceHtml = (rc.evidence||[]).map(e => {
+      let html = '<div class="evidence">• ' + e;
+      const shaMatch = e.match(/\b([a-f0-9]{7,40})\b/gi);
+      if (shaMatch) {
+        shaMatch.forEach(sha => {
+          html = html.replace(sha, `<a class="ext" href="https://github.com/salginci/oncall-autopilot/commit/${sha}" target="_blank">${sha.substring(0,7)}</a>`);
+        });
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+
+    let commandsHtml = (rem.commands||[]).map(c => {
+      const shaMatch = c.match(/\b([a-f0-9]{7,40})\b/gi);
+      if (shaMatch) {
+        shaMatch.forEach(sha => {
+          c = c.replace(sha, `<a class="ext" href="https://github.com/salginci/oncall-autopilot/commit/${sha}" target="_blank">${sha.substring(0,7)}</a>`);
+        });
+      }
+      return c;
+    }).join('<br/>') || '—';
+
     document.getElementById('qwen-content').innerHTML = `
       <div class="field"><b>Severity:</b> <span style="color:var(--red)">${qwenData.severity||'—'}</span></div>
       <div class="field"><b>Triage:</b> ${qwenData.triage_summary||'—'}</div>
       <div class="field"><b>Root Cause:</b> ${rc.summary||'—'}</div>
       <div class="field"><b>Confidence:</b> <b>${((rc.confidence||0)*100).toFixed(0)}%</b></div>
       <div class="field"><b>Evidence:</b></div>
-      ${(rc.evidence||[]).map(e=>'<div class="evidence">• '+e+'</div>').join('')}
+      ${evidenceHtml}
       <div class="field" style="margin-top:8px"><b style="color:var(--green)">Proposed Fix:</b> ${rem.action||'—'}</div>
       <div class="field"><b>Risk:</b> ${rem.risk||'—'}</div>
-      <div class="field"><b>Commands:</b> ${(rem.commands||[]).join('<br/>')||'—'}</div>
+      <div class="field"><b>Commands:</b> ${commandsHtml}</div>
+      <div style="margin-top:8px">
+        <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank">View repo</a> &nbsp;
+        <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">Commit history</a> &nbsp;
+        <a class="ext" href="http://localhost:3000/health" target="_blank">/health</a> &nbsp;
+        <a class="ext" href="http://localhost:3000/metrics" target="_blank">/metrics</a>
+      </div>
     `;
 
     document.getElementById('action-context').innerHTML = `

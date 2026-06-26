@@ -1,15 +1,9 @@
-# Demo Service Configuration
-# This is the file we change during the demo to trigger an incident.
-# Change pool_size from 20 to 2, push to GitHub, and watch the agent react.
-
+database:
+  max_overflow: 5
+  pool_size: 2
+  timeout_seconds: 30
+logging:
+  level: INFO
 service:
   name: orders-service
   port: 3000
-
-database:
-  pool_size: 20
-  max_overflow: 5
-  timeout_seconds: 30
-
-logging:
-  level: INFO

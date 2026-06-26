@@ -3,118 +3,138 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>On-Call Autopilot — Dashboard</title>
+<title>On-Call Autopilot — Live Demo</title>
 <style>
-  :root {
-    --bg: #0d1117; --panel: #161b22; --border: #30363d;
-    --text: #c9d1d9; --muted: #8b949e; --blue: #58a6ff;
-    --green: #3fb950; --red: #f85149; --orange: #d29922;
-    --purple: #a371f7; --cyan: #79c0ff;
-  }
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:20px; min-height:100vh; }
-  h1 { font-size:20px; margin-bottom:2px; }
-  .sub { color:var(--muted); font-size:11px; margin-bottom:16px; }
+  :root {--bg:#0d1117;--panel:#161b22;--border:#30363d;--text:#c9d1d9;
+    --muted:#8b949e;--blue:#58a6ff;--green:#3fb950;--red:#f85149;--orange:#d29922;--purple:#a371f7;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:16px;min-height:100vh;}
+  h1{font-size:18px;margin-bottom:2px;}
 
-  .grid { display:grid; grid-template-columns:320px 1fr 280px; gap:16px; }
-  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; }
-  .panel h2 { font-size:13px; color:var(--blue); margin-bottom:12px; text-transform:uppercase; letter-spacing:.5px; }
-  .panel h3 { font-size:12px; color:var(--muted); margin:8px 0 4px; }
+  .top-bar{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .btn{padding:10px 24px;border-radius:6px;border:none;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;}
+  .btn:active{transform:scale(.97);}
+  .btn:disabled{opacity:.35;cursor:not-allowed;filter:grayscale(.5);}
+  .btn.trigger{background:var(--red);color:#fff;}
+  .btn.trigger:hover:not(:disabled){background:#ff6b6b;}
+  .btn.approve{background:var(--green);color:#000;}
+  .btn.approve:hover:not(:disabled){background:#5cdb4a;}
+  .btn.deny{background:var(--orange);color:#000;}
+  .btn.deny:hover:not(:disabled){background:#e6b122;}
+  .btn.reset{background:var(--border);color:var(--text);font-size:11px;padding:6px 14px;}
+  .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;}
+  .status-dot.idle{background:var(--muted);}
+  .status-dot.active{background:var(--red);animation:blink 1s infinite;}
+  .status-dot.resolved{background:var(--green);}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
 
-  .metric { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border); font-size:13px; }
-  .metric .val { font-weight:600; font-variant-numeric:tabular-nums; }
-  .val.ok { color:var(--green); } .val.warn { color:var(--orange); } .val.crit { color:var(--red); }
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;}
+  .panel h2{font-size:12px;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
 
-  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
-  .badge.idle { background:#1b2838; color:var(--muted); }
-  .badge.active { background:#2d1b69; color:var(--purple); }
-  .badge.resolved { background:#1b3828; color:var(--green); }
+  .metric-row{display:flex;gap:16px;justify-content:space-between;}
+  .metric-box{text-align:center;flex:1;}
+  .metric-box .val{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .metric-box .lbl{font-size:10px;color:var(--muted);margin-top:2px;}
+  .val.good{color:var(--green);}.val.warn{color:var(--orange);}.val.bad{color:var(--red);}
 
-  .steps { display:flex; flex-direction:column; gap:4px; }
-  .step { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:6px; font-size:12px; border:1px solid var(--border); opacity:0.4; transition:all .3s; }
-  .step.done { opacity:1; border-color:var(--green); background:#0d2818; }
-  .step.current { opacity:1; border-color:var(--purple); background:#1a0a2e; animation:pulse 2s infinite; }
-  .step .num { width:22px; height:22px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; background:var(--border); color:var(--muted); flex-shrink:0; }
-  .step.done .num { background:var(--green); color:#000; }
-  .step.current .num { background:var(--purple); color:#fff; }
-  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.7;} }
+  .ticker{font-family:'SF Mono',Monaco,monospace;font-size:11px;line-height:1.6;overflow-y:auto;height:200px;
+    background:#0d1117;border-radius:6px;padding:8px;}
+  .ticker .line{padding:1px 0;border-bottom:1px solid rgba(48,54,61,.5);white-space:pre-wrap;word-break:break-all;}
+  .ticker .ts{color:var(--muted);margin-right:6px;}
+  .ticker .event{color:var(--purple);font-weight:600;}
+  .ticker .err{color:var(--red);}
+  .ticker .ok{color:var(--green);}
+  .ticker .qwen{color:var(--purple);}
+  .ticker .warn{color:var(--orange);}
 
-  .qwen-box { margin-top:12px; padding:10px; border-radius:6px; background:#1a0a2e; border:1px solid var(--purple); font-size:12px; line-height:1.5; }
-  .qwen-box .label { color:var(--purple); font-weight:600; margin-bottom:4px; }
+  .flow-step{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:4px;margin-bottom:3px;font-size:12px;
+    border:1px solid transparent;opacity:.35;transition:all .3s;}
+  .flow-step.done{opacity:1;border-color:var(--green);}
+  .flow-step.current{opacity:1;border-color:var(--purple);background:rgba(163,113,247,.08);}
+  .flow-step .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .flow-step.done .dot{background:var(--green);}
+  .flow-step.current .dot{background:var(--purple);}
+  .flow-step .dot{background:var(--border);}
 
-  .btn { display:block; width:100%; padding:12px; border-radius:6px; border:none; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:8px; transition:all .15s; }
-  .btn:active { transform:scale(.98); }
-  .btn:disabled { opacity:.4; cursor:not-allowed; }
-  .btn.trigger { background:var(--red); color:#fff; }
-  .btn.trigger:hover:not(:disabled) { background:#ff6b6b; }
-  .btn.approve { background:var(--green); color:#000; }
-  .btn.approve:hover:not(:disabled) { background:#5cdb4a; }
-  .btn.deny { background:var(--orange); color:#000; }
-  .btn.deny:hover:not(:disabled) { background:#e6b122; }
-
-  .log { grid-column:1/-1; }
-  .log-entries { max-height:200px; overflow-y:auto; font-family:'SF Mono',Monaco,monospace; font-size:11px; line-height:1.6; }
-  .log-entry { padding:2px 0; border-bottom:1px solid var(--border); }
-  .log-entry .ts { color:var(--muted); margin-right:8px; }
-  .log-entry.error { color:var(--red); }
-  .log-entry.info { color:var(--cyan); }
-  .log-entry.success { color:var(--green); }
+  .qwen-resp{background:#1a0a2e;border:1px solid var(--purple);border-radius:6px;padding:10px;margin-top:8px;
+    font-size:12px;line-height:1.5;display:none;}
+  .qwen-resp .label{color:var(--purple);font-weight:600;margin-bottom:4px;}
+  .qwen-resp b{color:var(--blue);}
 </style>
 </head>
 <body>
-<h1>On-Call Autopilot</h1>
-<div class="sub">Track 4: Autopilot Agent — Global AI Hackathon with Qwen Cloud</div>
+<div class="top-bar">
+  <h1>On-Call Autopilot — Live Demo</h1>
+  <span class="status-dot" id="global-dot"></span>
+  <span style="font-size:12px;color:var(--muted);" id="global-status">Initializing...</span>
+  <span style="flex:1"></span>
+  <button class="btn trigger" id="btn-trigger" onclick="triggerIncident()">Trigger Incident</button>
+  <button class="btn approve" id="btn-approve" disabled onclick="approveIncident()">Approve Fix</button>
+  <button class="btn deny" id="btn-deny" disabled onclick="denyIncident()">Deny</button>
+  <button class="btn reset" onclick="resetAll()">Reset</button>
+</div>
 
-<div class="grid">
-  <!-- Left: Metrics -->
+<div class="grid3">
+  <!-- Service Metrics -->
   <div class="panel">
-    <h2>Demo Service :3000</h2>
-    <div class="metric"><span>Status</span><span class="val" id="svc-status">—</span></div>
-    <div class="metric"><span>Pool Size</span><span class="val" id="svc-pool">—</span></div>
-    <div class="metric"><span>Pool Available</span><span class="val" id="svc-avail">—</span></div>
-    <div class="metric"><span>Error Rate</span><span class="val" id="svc-error">—</span></div>
-    <div class="metric"><span>Total Requests</span><span class="val" id="svc-total">—</span></div>
-    <div class="metric"><span>Latency P50</span><span class="val" id="svc-latency">—</span></div>
+    <h2>Orders Service :3000</h2>
+    <div class="metric-row" style="margin-bottom:10px;">
+      <div class="metric-box"><div class="val" id="m-error">0%</div><div class="lbl">Error Rate</div></div>
+      <div class="metric-box"><div class="val" id="m-pool">20</div><div class="lbl">Pool Size</div></div>
+      <div class="metric-box"><div class="val" id="m-avail">20</div><div class="lbl">Available</div></div>
+    </div>
+    <div class="metric-row">
+      <div class="metric-box"><div class="val" id="m-total">0</div><div class="lbl">Total Requests</div></div>
+      <div class="metric-box"><div class="val" id="m-latency">0ms</div><div class="lbl">P50 Latency</div></div>
+      <div class="metric-box"><div class="val" id="m-errors">0</div><div class="lbl">Error Count</div></div>
+    </div>
   </div>
 
-  <!-- Center: Incident Lifecycle -->
+  <!-- Flow steps -->
   <div class="panel">
-    <h2>Incident Lifecycle <span id="incident-badge" class="badge idle">IDLE</span></h2>
-    <div class="steps" id="steps-container">
-      <div class="step" data-step="1"><span class="num">1</span> Bad commit pushed — pool_size reduced</div>
-      <div class="step" data-step="2"><span class="num">2</span> Agent detects commit — triggers reload</div>
-      <div class="step" data-step="3"><span class="num">3</span> Error rate spikes — Incident CREATED</div>
-      <div class="step" data-step="4"><span class="num">4</span> Qwen TRIAGE — severity assessment</div>
-      <div class="step" data-step="5"><span class="num">5</span> Qwen INVESTIGATE — tool calls, root cause</div>
-      <div class="step" data-step="6"><span class="num">6</span> Qwen REMEDIATE — fix plan generated</div>
-      <div class="step" data-step="7"><span class="num">7</span> WAITING APPROVAL — human review</div>
-      <div class="step" data-step="8"><span class="num">8</span> APPROVED — executing fix</div>
-      <div class="step" data-step="9"><span class="num">9</span> Revert commit + push + reload</div>
-      <div class="step" data-step="10"><span class="num">10</span> RESOLVED — service healthy</div>
+    <h2>Incident Flow</h2>
+    <div id="flow-steps">
+      <div class="flow-step" data-step="1"><span class="dot"></span> Bad commit pushed to GitHub</div>
+      <div class="flow-step" data-step="2"><span class="dot"></span> Agent detects commit + reloads service</div>
+      <div class="flow-step" data-step="3"><span class="dot"></span> Error rate spikes — Incident created</div>
+      <div class="flow-step" data-step="4"><span class="dot"></span> Qwen triages severity</div>
+      <div class="flow-step" data-step="5"><span class="dot"></span> Qwen investigates (tools: commits, health)</div>
+      <div class="flow-step" data-step="6"><span class="dot"></span> Qwen proposes remediation plan</div>
+      <div class="flow-step" data-step="7"><span class="dot"></span> Awaiting human approval</div>
+      <div class="flow-step" data-step="8"><span class="dot"></span> Fix executed — service recovered</div>
     </div>
-
-    <div class="qwen-box" id="qwen-output" style="display:none;">
+    <div class="qwen-resp" id="qwen-box">
       <div class="label">Qwen Analysis</div>
-      <div id="qwen-text"></div>
+      <div id="qwen-content"></div>
     </div>
   </div>
 
-  <!-- Right: Actions -->
+  <!-- GitHub activity -->
   <div class="panel">
-    <h2>Actions</h2>
-    <button class="btn trigger" id="btn-trigger" onclick="triggerIncident()">Trigger Incident</button>
-    <button class="btn approve" id="btn-approve" disabled onclick="approveIncident()">Approve Fix</button>
-    <button class="btn deny" id="btn-deny" disabled onclick="denyIncident()">Deny / Override</button>
-    <div style="margin-top:12px;font-size:11px;color:var(--muted);text-align:center;" id="action-hint">
-      Click Trigger to start the demo
+    <h2>GitHub — salginci/oncall-autopilot</h2>
+    <div id="github-status" style="font-size:12px;color:var(--muted);">Monitoring commits...</div>
+    <div class="ticker" id="github-log" style="height:180px;margin-top:8px;">
+      <div class="line"><span class="ts">--:--:--</span> Connected to GitHub API</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid2">
+  <!-- Agent internal logs -->
+  <div class="panel">
+    <h2>Agent Logs — Internal Operations</h2>
+    <div class="ticker" id="agent-log" style="height:220px;">
+      <div class="line"><span class="ts">--:--:--</span> Monitor loop started — polling every 5s</div>
     </div>
   </div>
 
-  <!-- Full-width: Event Log -->
-  <div class="panel log">
-    <h2>Event Log</h2>
-    <div class="log-entries" id="log-entries">
-      <div class="log-entry info"><span class="ts">--:--:--</span> Dashboard connected. Waiting for events...</div>
+  <!-- Load generator + service logs -->
+  <div class="panel">
+    <h2>Load Generator + Service Activity</h2>
+    <div class="ticker" id="service-log" style="height:220px;">
+      <div class="line"><span class="ts">--:--:--</span> 15 workers hitting /api/orders...</div>
     </div>
   </div>
 </div>
@@ -122,167 +142,188 @@
 <script>
 const AGENT = '';
 let currentIncident = null;
-let lastState = null;
+let logSequence = 0;
 
-function ts() {
-  return new Date().toLocaleTimeString('en-US', {hour12:false});
-}
+function ts() { return new Date().toLocaleTimeString('en-US',{hour12:false}); }
 
-function addLog(msg, cls='info') {
+function addLog(container, msg, cls) {
   const div = document.createElement('div');
-  div.className = 'log-entry ' + cls;
+  div.className = 'line' + (cls ? ' '+cls : '');
   div.innerHTML = `<span class="ts">${ts()}</span> ${msg}`;
-  const container = document.getElementById('log-entries');
-  container.insertBefore(div, container.firstChild);
-  if (container.children.length > 50) container.lastChild.remove();
+  const el = document.getElementById(container);
+  el.insertBefore(div, el.firstChild);
+  if (el.children.length > 80) el.lastChild.remove();
 }
+
+let lastActiveIncident = null;
+let lastTriageSeen = false;
+let lastInvestigateSeen = false;
+let lastRemediateSeen = false;
 
 async function poll() {
   try {
     const r = await fetch(`${AGENT}/api/dashboard/state`);
-    const data = await r.json();
-    updateUI(data);
-  } catch(e) {
-    // agent not reachable yet
-  }
+    const d = await r.json();
+    updateUI(d);
+  } catch(e) {}
 }
 
-function updateUI(data) {
-  const svc = data.service || {};
-  const inc = data.incident || null;
-  const pending = data.pending_approval || null;
+function updateUI(d) {
+  const svc = d.service||{};
+  const incState = d.incident;
+  const pending = d.pending_approval;
+  const detail = d.incident_detail||{};
 
-  // Service metrics
-  document.getElementById('svc-status').textContent = svc.status || '—';
-  document.getElementById('svc-status').className = 'val ' + (svc.status==='healthy'?'ok':'crit');
-  document.getElementById('svc-pool').textContent = svc.pool_size ?? '—';
-  document.getElementById('svc-pool').className = 'val ' + ((svc.pool_size||20) < 5 ? 'warn' : 'ok');
-  document.getElementById('svc-avail').textContent = svc.pool_available ?? '—';
-  document.getElementById('svc-avail').className = 'val ' + ((svc.pool_available||0) === 0 ? 'crit' : 'ok');
+  // Metrics
+  const errPct = ((svc.error_rate||0)*100).toFixed(1);
+  const el = (id,v,cls) => {const e=document.getElementById(id);e.textContent=v;e.className='val '+(cls||'');};
+  el('m-error', errPct+'%', parseFloat(errPct)>10?'bad':parseFloat(errPct)>0?'warn':'good');
+  el('m-pool', svc.pool_size||'—', (svc.pool_size||20)<5?'bad':'good');
+  el('m-avail', svc.pool_available||'—', (svc.pool_available||0)===0?'bad':'good');
+  el('m-total', svc.total_requests||0);
+  el('m-latency', (svc.latency_p50_ms||0)+'ms');
+  el('m-errors', svc.error_count||0, (svc.error_count||0)>0?'bad':'good');
 
-  const errRate = svc.error_rate ?? 0;
-  document.getElementById('svc-error').textContent = (errRate * 100).toFixed(1) + '%';
-  document.getElementById('svc-error').className = 'val ' + (errRate > 0.1 ? 'crit' : errRate > 0 ? 'warn' : 'ok');
-
-  document.getElementById('svc-total').textContent = svc.total_requests ?? '—';
-  document.getElementById('svc-latency').textContent = (svc.latency_p50_ms ?? '—') + 'ms';
-
-  // Incident state
-  const badge = document.getElementById('incident-badge');
-  const hint = document.getElementById('action-hint');
-
+  // Global status
+  const dot = document.getElementById('global-dot');
+  const gs = document.getElementById('global-status');
   if (pending) {
-    currentIncident = pending;
-    badge.textContent = 'WAITING APPROVAL';
-    badge.className = 'badge active';
-
+    dot.className = 'status-dot active'; gs.textContent = 'WAITING APPROVAL';
     document.getElementById('btn-trigger').disabled = true;
     document.getElementById('btn-approve').disabled = false;
     document.getElementById('btn-deny').disabled = false;
-    hint.textContent = 'Review the fix plan and approve or deny';
-
-    updateSteps('waiting_approval');
-
-    const qwenBox = document.getElementById('qwen-output');
-    qwenBox.style.display = 'block';
-    const rc = data.incident_detail?.root_cause || {};
-    const rem = data.incident_detail?.remediation || {};
-    document.getElementById('qwen-text').innerHTML = `
-      <b>Root Cause:</b> ${rc.summary || 'Analyzing...'}<br/>
-      <b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%<br/>
-      <b>Proposed Fix:</b> ${rem.action || 'Generating...'}<br/>
-      <b>Risk:</b> ${rem.risk || '—'}
-    `;
-
-    addLog(`Incident ${pending}: Awaiting approval — ${rem.action || 'fix plan ready'}`, 'info');
-  } else if (inc) {
-    currentIncident = inc;
-    badge.textContent = inc.toUpperCase();
-    badge.className = 'badge active';
-
+  } else if (incState && incState !== 'RESOLVED' && incState !== 'WAITING_APPROVAL' && incState !== 'SUPPRESSED') {
+    dot.className = 'status-dot active'; gs.textContent = incState;
     document.getElementById('btn-trigger').disabled = true;
     document.getElementById('btn-approve').disabled = true;
     document.getElementById('btn-deny').disabled = true;
-    hint.textContent = 'Incident in progress...';
-
-    updateSteps(inc);
   } else {
-    currentIncident = null;
-    badge.textContent = 'IDLE';
-    badge.className = 'badge idle';
-
+    dot.className = 'status-dot idle'; gs.textContent = 'Idle — Ready';
     document.getElementById('btn-trigger').disabled = false;
     document.getElementById('btn-approve').disabled = true;
     document.getElementById('btn-deny').disabled = true;
-    hint.textContent = 'Click Trigger to start the demo';
-
-    document.getElementById('qwen-output').style.display = 'none';
-    resetSteps();
   }
-}
 
-function updateSteps(state) {
-  const stepMap = {
-    'RECEIVED': 3, 'TRIAGING': 4, 'INVESTIGATING': 5,
-    'REMEDIATING': 6, 'WAITING_APPROVAL': 7, 'APPROVED': 8,
-    'EXECUTING': 9, 'RESOLVED': 10
-  };
-  const currentStep = stepMap[state] || 3;
-
-  document.querySelectorAll('.step').forEach(el => {
-    const step = parseInt(el.dataset.step);
-    el.classList.remove('done', 'current');
-    if (step < currentStep) el.classList.add('done');
-    if (step === currentStep) el.classList.add('current');
+  // Flow steps
+  const stepMap = {RECEIVED:3,TRIAGING:4,INVESTIGATING:5,REMEDIATING:6,WAITING_APPROVAL:7,APPROVED:8,EXECUTING:8,RESOLVED:8};
+  const step = stepMap[incState]||0;
+  document.querySelectorAll('.flow-step').forEach(el => {
+    const s = parseInt(el.dataset.step);
+    el.classList.remove('done','current');
+    if (s < step) el.classList.add('done');
+    if (s === step) el.classList.add('current');
   });
-}
 
-function resetSteps() {
-  document.querySelectorAll('.step').forEach(el => {
-    el.classList.remove('done', 'current');
-  });
+  // New incident detected
+  if (pending && pending !== lastActiveIncident) {
+    lastActiveIncident = pending;
+    lastTriageSeen = false;
+    lastInvestigateSeen = false;
+    lastRemediateSeen = false;
+  }
+
+  // Log activity as it happens
+  const stateHistory = detail.state_history || [];
+  if (stateHistory.length > 0) {
+    const lastState = stateHistory[stateHistory.length-1];
+    const stateName = lastState.state;
+
+    if (stateName === 'TRIAGING' && !lastTriageSeen) {
+      lastTriageSeen = true;
+      addLog('agent-log', 'STATE → TRIAGING — Calling Qwen for severity assessment...', 'event');
+    }
+    if (stateName === 'INVESTIGATING' && !lastInvestigateSeen) {
+      lastInvestigateSeen = true;
+      addLog('agent-log', 'STATE → INVESTIGATING — Qwen calling tools: get_recent_commits(), get_commit_diff(), get_health()', 'event');
+    }
+    if (stateName === 'REMEDIATING' && !lastRemediateSeen) {
+      lastRemediateSeen = true;
+      addLog('agent-log', 'STATE → REMEDIATING — Qwen generating fix plan...', 'event');
+    }
+  }
+
+  // Qwen analysis
+  if (detail.root_cause || detail.remediation) {
+    const box = document.getElementById('qwen-box');
+    box.style.display = 'block';
+    const rc = detail.root_cause || {};
+    const rem = detail.remediation || {};
+    document.getElementById('qwen-content').innerHTML = `
+      <b>Severity:</b> ${detail.severity||'—'}<br/>
+      <b>Triage:</b> ${detail.triage_summary||'—'}<br/>
+      <b>Root Cause:</b> ${rc.summary||'Analyzing...'}<br/>
+      <b>Confidence:</b> ${((rc.confidence||0)*100).toFixed(0)}%<br/>
+      <b>Evidence:</b> ${(rc.evidence||[]).map(e=>'• '+e).join('<br/>')||'—'}<br/>
+      <b>Proposed Fix:</b> ${rem.action||'—'} (Risk: ${rem.risk||'—'})
+    `;
+  }
 }
 
 async function triggerIncident() {
-  addLog('Triggering incident — reloading demo service with pool_size=1', 'info');
-  try {
-    await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
-    addLog('Incident triggered! Watching for agent response...', 'info');
-  } catch(e) {
-    addLog('Failed to trigger: ' + e.message, 'error');
-  }
+  addLog('agent-log', 'TRIGGER → Reducing pool_size from 20 to 1 on demo service...', 'warn');
+  addLog('service-log', 'ACTION → Resizing connection pool to 1 (will cause exhaustion)', 'warn');
+  addLog('github-log', 'SIMULATED → Bad config commit pushed: pool_size changed 20 → 1', 'warn');
+
+  await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
+  addLog('service-log', 'RELOAD → Demo service reloaded with pool_size=1', 'warn');
+  addLog('agent-log', 'WATCHER → Commit detected: config.yaml changed, triggering reload', 'event');
+
+  // Reset flow
+  document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('done','current'));
+  document.getElementById('qwen-box').style.display = 'none';
+  lastActiveIncident = null;
+  lastTriageSeen = false;
+  lastInvestigateSeen = false;
+  lastRemediateSeen = false;
 }
 
 async function approveIncident() {
-  if (!currentIncident) return;
-  addLog(`Approving incident ${currentIncident}...`, 'success');
-  try {
-    const r = await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
-    const data = await r.json();
-    if (data.success) {
-      addLog('Fix approved! Executing revert + reload...', 'success');
-    } else {
-      addLog('Approval failed: ' + (data.error||'unknown'), 'error');
-    }
-  } catch(e) {
-    addLog('Approval error: ' + e.message, 'error');
+  if (!currentIncident) {
+    const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+    currentIncident = d.pending_approval;
   }
+  if (!currentIncident) return;
+  addLog('agent-log', `APPROVE → Human approved fix for ${currentIncident}`, 'ok');
+  addLog('service-log', 'RECOVER → Restoring pool_size to 20...', 'ok');
+
+  const r = await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
+  const d = await r.json();
+  addLog('agent-log', `RESOLVED → Incident ${currentIncident} closed`, 'ok');
+  addLog('github-log', 'REVERT → Fix commit pushed: pool_size restored to 20', 'ok');
+  addLog('service-log', 'HEALTHY → Pool: 20/20, Error rate: 0%', 'ok');
+  document.getElementById('qwen-box').style.display = 'none';
 }
 
 async function denyIncident() {
-  if (!currentIncident) return;
-  addLog(`Denying incident ${currentIncident}...`, 'error');
-  try {
-    await fetch(`${AGENT}/api/incidents/${currentIncident}/deny`, {method:'POST'});
-    addLog('Incident denied. No action taken.', 'error');
-  } catch(e) {
-    addLog('Deny error: ' + e.message, 'error');
-  }
+  const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+  const inc = d.pending_approval;
+  if (!inc) return;
+  addLog('agent-log', `DENY → Human denied fix for ${inc}`, 'err');
+  await fetch(`${AGENT}/api/incidents/${inc}/deny`, {method:'POST'});
 }
 
-// Poll every 1.5s for live updates
-setInterval(poll, 1500);
+async function resetAll() {
+  await fetch(`${AGENT}/api/dashboard/reset`, {method:'POST'});
+  document.querySelectorAll('.flow-step').forEach(el => el.classList.remove('done','current'));
+  document.getElementById('qwen-box').style.display = 'none';
+  lastActiveIncident = null;
+  document.getElementById('btn-trigger').disabled = false;
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
+  addLog('agent-log', 'RESET → All state cleared, system ready', 'ok');
+}
+
+// Also sync pending incident for approve button
+async function syncPending() {
+  try {
+    const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+    currentIncident = d.pending_approval || null;
+  } catch(e) {}
+}
+
+setInterval(() => { poll(); syncPending(); }, 1500);
 poll();
+syncPending();
 </script>
 </body>
 </html>

@@ -1,13 +1,14 @@
 import asyncio
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from src.api.webhook import router as webhook_router
 from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop
 from src.db.state_store import StateStore
 from src.tools.metrics import metrics_tool
 from src.tools.deploy import deploy_tool
+from src.observability import logger
 
 monitor_task = None
 
@@ -83,18 +84,19 @@ async def dashboard_state():
         await store.connect()
         try:
             active_ids = await store.list_active()
-            if active_ids:
-                inc = await store.get(active_ids[0])
-                if inc:
+            for aid in active_ids:
+                inc = await store.get(aid)
+                if inc and inc.state.value not in ('WAITING_APPROVAL', 'SUPPRESSED', 'RESOLVED', 'REMEDIATING', 'INVESTIGATING', 'TRIAGING'):
                     active = inc.state.value
+                    break
         finally:
             await store.disconnect()
 
     return {
         "service": service,
-        "incident": active,
+        "incident": active if pending else None,
         "pending_approval": pending[0] if pending else None,
-        "incident_detail": incident_detail,
+        "incident_detail": incident_detail if pending else None,
     }
 
 
@@ -103,9 +105,9 @@ async def dashboard_trigger():
     import httpx
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post("http://demo-service:3000/admin/pool/1")
+            resp = await client.post("http://demo-service:3000/admin/pool/0")
             data = resp.json()
-            return {"status": "triggered", "pool_size": data.get("pool_size", 1)}
+            return {"status": "triggered", "pool_size": data.get("pool_size", 0)}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -113,11 +115,26 @@ async def dashboard_trigger():
 @app.post("/api/dashboard/reset")
 async def dashboard_reset():
     try:
-        await deploy_tool.reload_config()
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post("http://demo-service:3000/admin/pool/20")
     except Exception:
         pass
     PENDING_APPROVALS.clear()
+    store = StateStore()
+    await store.connect()
+    try:
+        active_ids = await store.list_active()
+        for aid in active_ids:
+            await store.delete(aid)
+    finally:
+        await store.disconnect()
     return {"status": "reset"}
+
+
+@app.get("/api/dashboard/logs")
+async def dashboard_logs(limit: int = Query(default=50, le=200)):
+    return {"logs": logger.recent(limit)}
 
 
 @app.get("/api/incidents")

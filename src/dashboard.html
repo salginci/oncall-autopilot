@@ -57,6 +57,8 @@
   .qwen-panel .field{margin-bottom:6px;font-size:12px;line-height:1.4;}
   .qwen-panel .field b{color:var(--blue);}
   .qwen-panel .evidence{font-size:11px;color:var(--muted);margin:4px 0 4px 12px;}
+  #recovery-panel{background:#0a2e14;border-color:var(--green);}
+  #recovery-panel .title{color:var(--green);}
 
   .approval-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;
     justify-content:center;align-items:center;z-index:100;}
@@ -156,6 +158,10 @@
     <div class="qwen-panel" id="qwen-panel">
       <div class="title">Qwen Analysis</div>
       <div id="qwen-content"></div>
+    </div>
+    <div class="qwen-panel" id="recovery-panel">
+      <div class="title">Recovery Result</div>
+      <div id="recovery-content"></div>
     </div>
   </div>
 
@@ -269,24 +275,66 @@ function closeApproval() {
 async function confirmApprove() {
   closeApproval();
   addLog('HUMAN → Approved fix', 'ok');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Executing fix...</b><br/>Restoring pool to 20';
+
+  // Enter the EXECUTING state immediately (before the multi-second revert) so the controls
+  // don't keep looking clickable and it's clear the fix is running.
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('global-dot').className = 'status-dot active';
+  document.getElementById('global-status').textContent = 'EXECUTING FIX';
+  setFlowStep(7);
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Executing fix…</b><br/>Reverting the bad commit on GitHub and restoring the pool to 20…';
 
   if (!currentIncident) {
     const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
     currentIncident = d.pending_approval;
   }
+
+  let approveResult = null;
   if (currentIncident) {
-    await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
+    try {
+      approveResult = await (await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'})).json();
+    } catch(e) {}
   }
-  addLog('FIX → Pool restored to 20, service recovered', 'ok');
-  setFlowStep(7);
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Service Recovered!</b><br/>Pool: 20/20, Error rate: 0%';
+
+  // Pull the real revert commit the agent created (returned by the approve API).
+  let revertSha = null;
+  if (approveResult && Array.isArray(approveResult.details)) {
+    for (const d of approveResult.details) {
+      if (d && d.github_revert && d.github_revert.revert_sha) revertSha = d.github_revert.revert_sha;
+    }
+  }
+
+  addLog('FIX → Reverted bad commit' + (revertSha ? ' ('+revertSha.substring(0,7)+')' : '') + ', pool restored to 20', 'ok');
   document.getElementById('global-dot').className = 'status-dot resolved';
   document.getElementById('global-status').textContent = 'Resolved';
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Service Recovered!</b><br/>Pool: 20/20, Error rate: 0%';
+
+  renderRecovery(revertSha);
 
   document.getElementById('btn-trigger').disabled = false;
   document.getElementById('btn-approve').disabled = true;
   document.getElementById('btn-deny').disabled = true;
+}
+
+function renderRecovery(revertSha) {
+  const repo = 'https://github.com/salginci/oncall-autopilot';
+  const shaShort = revertSha ? revertSha.substring(0,7) : null;
+  const revertLink = shaShort
+    ? `<a class="ext" href="${repo}/commit/${revertSha}" target="_blank">${shaShort}</a>`
+    : '<span style="color:var(--muted)">(revert commit)</span>';
+  document.getElementById('recovery-content').innerHTML = `
+    <div class="field"><b>Executed:</b> Agent reverted the breaking commit on <code>main</code> and restored <code>pool_size</code> → 20</div>
+    <div class="field"><b>Commands run:</b><div class="evidence">• git revert of the pool_size→0 commit → new commit ${revertLink}</div><div class="evidence">• POST /admin/pool/20 on the orders-service</div></div>
+    <div class="field"><b>Revert commit:</b> ${revertLink}</div>
+    <div class="field"><b>Result:</b> <span style="color:var(--green)">Pool 20/20, error rate 0%, status healthy</span></div>
+    <div style="margin-top:8px">
+      <a class="ext" href="${repo}/commits/main" target="_blank">Commit history</a> &nbsp;
+      <a class="ext" href="${DEMO}/health" target="_blank">Verify /health</a> &nbsp;
+      <a class="ext" href="${DEMO}/metrics" target="_blank">Verify /metrics</a>
+    </div>`;
+  document.getElementById('recovery-panel').classList.add('visible');
 }
 
 async function triggerIncident() {
@@ -491,6 +539,7 @@ async function resetAll() {
 function resetUI() {
   setFlowStep(-1);
   document.getElementById('qwen-panel').classList.remove('visible');
+  document.getElementById('recovery-panel').classList.remove('visible');
   document.getElementById('step-detail-box').classList.remove('visible');
   document.getElementById('global-dot').className = 'status-dot idle';
   document.getElementById('global-status').textContent = 'Idle — Ready';

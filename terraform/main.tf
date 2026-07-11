@@ -156,3 +156,14 @@ output "ssh_command" {
   value       = "ssh root@${alicloud_instance.app.public_ip}"
   description = "SSH into the instance"
 }
+
+resource "alicloud_security_group_rule" "https" {
+  type              = "ingress"
+  ip_protocol       = "tcp"
+  nic_type          = "intranet"
+  policy            = "accept"
+  port_range        = "443/443"
+  priority          = 1
+  security_group_id = alicloud_security_group.main.id
+  cidr_ip           = "0.0.0.0/0"
+}

@@ -27,7 +27,10 @@ class SimulatedPool:
 
     def release(self, slot: int):
         with self.lock:
-            self.available.append(slot)
+            # Don't let available exceed the current size — a slot acquired before a resize
+            # and released after it would otherwise push available past size (e.g. 21 > 20).
+            if len(self.available) < self.size:
+                self.available.append(slot)
 
     def resize(self, new_size: int):
         with self.lock:

@@ -1,0 +1,37 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - QWEN_APIKEY=${QWEN_APIKEY}
+      - QWEN_BASE_URL=${QWEN_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
+      - QWEN_MODEL=${QWEN_MODEL:-qwen-turbo}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - DEMO_REPO=${DEMO_REPO:-salginci/oncall-autopilot}
+      - REDIS_URL=${REDIS_URL}
+      - DEMO_SERVICE_URL=${DEMO_SERVICE_URL}
+      - AGENT_POLL_INTERVAL=${AGENT_POLL_INTERVAL:-5}
+      - ERROR_RATE_THRESHOLD=${ERROR_RATE_THRESHOLD:-0.10}
+      - LATENCY_THRESHOLD_MS=${LATENCY_THRESHOLD_MS:-500}
+    restart: unless-stopped
+
+  demo-service:
+    build:
+      context: .
+      dockerfile: demo/service/Dockerfile
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  loadgen:
+    build:
+      context: .
+      dockerfile: demo/service/Dockerfile
+    command: python loadgen.py
+    depends_on:
+      - demo-service
+    environment:
+      - SERVICE_URL=${DEMO_SERVICE_URL:-http://demo-service:3000}
+    restart: unless-stopped

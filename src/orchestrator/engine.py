@@ -106,7 +106,7 @@ async def approve_incident(incident_id: str) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.post("http://demo-service:3000/admin/pool/20")
+            r = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/20")
             result["details"].append({"pool_restored": r.status_code == 200})
     except Exception as e:
         result["details"].append({"pool_restore_error": str(e)})

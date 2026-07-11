@@ -40,8 +40,16 @@
   .flow-step.active .indicator{background:var(--purple);color:#fff;animation:pulse 1.5s infinite;}
   .flow-step.done .indicator{background:var(--green);color:#000;}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(163,113,247,.4)}50%{box-shadow:0 0 0 8px rgba(163,113,247,0)}}
+  .flow-step{cursor:pointer;}
+  .flow-step:hover{border-color:var(--muted);}
   .flow-step .label{flex:1;line-height:1.3;}
   .flow-step .detail{font-size:11px;color:var(--muted);margin-top:2px;}
+
+  .step-detail-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;display:none;margin-bottom:12px;}
+  .step-detail-box.visible{display:block;}
+  .step-detail-box h3{font-size:13px;color:var(--purple);margin-bottom:6px;}
+  .step-detail-box .desc{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:8px;}
+  .step-detail-box a.ext{display:inline-block;margin-right:12px;margin-bottom:4px;}
 
   .qwen-panel{background:#1a0a2e;border:1px solid var(--purple);border-radius:8px;padding:14px;margin-top:8px;display:none;}
   .qwen-panel.visible{display:block;}
@@ -159,6 +167,13 @@
       Click <b style="color:var(--red)">Trigger Incident</b> to simulate a bad config deploy that breaks the service.
     </div>
   </div>
+</div>
+
+<!-- Step Detail Box (appears below right panel when a flow step is clicked) -->
+<div class="step-detail-box" id="step-detail-box">
+  <h3 id="step-detail-title"></h3>
+  <div class="desc" id="step-detail-desc"></div>
+  <div id="step-detail-links"></div>
 </div>
 
 <!-- Agent Logs -->
@@ -443,6 +458,7 @@ async function resetAll() {
 function resetUI() {
   setFlowStep(-1);
   document.getElementById('qwen-panel').classList.remove('visible');
+  document.getElementById('step-detail-box').classList.remove('visible');
   document.getElementById('global-dot').className = 'status-dot idle';
   document.getElementById('global-status').textContent = 'Idle — Ready';
   document.getElementById('btn-trigger').disabled = false;
@@ -451,6 +467,113 @@ function resetUI() {
   document.getElementById('action-context').innerHTML = 'System is idle — monitoring demo service every 5 seconds.<br/><br/>Click <b style="color:var(--red)">Trigger Incident</b> to simulate a bad config deploy that breaks the service.';
   currentIncident = null;
   flowProgress = 0;
+}
+
+const STEP_DETAILS = {
+  0: {
+    title: 'Step 1: Bad commit pushed to GitHub',
+    desc: 'A developer pushes a commit that changes <b>demo/service/config.yaml</b>, reducing <code>pool_size</code> from <b>20 → 0</b>. This simulates a production config error — the database connection pool is now exhausted, causing all requests to fail with HTTP 503.',
+    links: [
+      {label: 'View Latest Commit', url: 'https://github.com/salginci/oncall-autopilot/commits/main'},
+      {label: 'config.yaml', url: 'https://github.com/salginci/oncall-autopilot/blob/main/demo/service/config.yaml'},
+      {label: 'GitHub Repo', url: 'https://github.com/salginci/oncall-autopilot'},
+    ],
+    dynamic: true,
+  },
+  1: {
+    title: 'Step 2: Agent detects commit + reloads',
+    desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle. When it detects a new commit touching a <code>*.yaml</code> file, it triggers <code>POST /admin/pool/0</code> on the demo service, reloading it with the bad config.',
+    links: [
+      {label: 'watcher.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/tools/watcher.py'},
+      {label: 'Demo /admin/reload', url: 'http://localhost:3000/admin/reload'},
+      {label: 'GitHub API', url: 'https://docs.github.com/en/rest/commits/commits'},
+    ]
+  },
+  2: {
+    title: 'Step 3: Error rate spikes → Incident Created',
+    desc: 'The <b>monitor loop</b> (<code>src/orchestrator/engine.py</code>) polls the demo service every 5 seconds. When <code>error_rate > 10%</code> or <code>P50 latency > 500ms</code>, an <b>Alert</b> is raised and an <b>Incident</b> is created in the state machine. The incident transitions to RECEIVED → TRIAGING.',
+    links: [
+      {label: 'engine.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/engine.py'},
+      {label: 'Demo /metrics', url: 'http://localhost:3000/metrics'},
+      {label: 'Agent /health', url: 'http://localhost:8080/health'},
+    ]
+  },
+  3: {
+    title: 'Step 4: Qwen TRIAGE',
+    desc: 'The agent calls <b>Qwen Cloud API</b> (<code>qwen-turbo</code>) with a structured prompt containing the alert details (error rate, latency, service name). Qwen returns a JSON assessment with <b>severity</b> (CRITICAL/HIGH/MEDIUM/LOW), a <b>summary</b>, and a decision on whether to <b>escalate to investigation</b>. Low-severity incidents are suppressed here.',
+    links: [
+      {label: 'triage.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/agents/triage.py'},
+      {label: 'Qwen Cloud API', url: 'https://www.qwencloud.com/'},
+      {label: 'Models reference', url: 'https://bit.ly/qwencloud-modelselection'},
+    ]
+  },
+  4: {
+    title: 'Step 5: Qwen INVESTIGATE',
+    desc: 'Qwen calls multiple <b>tools</b> to gather evidence: <code>get_recent_commits()</code> to find recent changes, <code>get_error_rate()</code> and <code>get_health()</code> to verify symptoms, <code>get_commit_diff()</code> to examine exactly what changed. It then forms a <b>root cause hypothesis</b> with a confidence score (0–100%) and a list of evidence points. Up to 5 turns of tool calling are allowed.',
+    links: [
+      {label: 'investigate.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/agents/investigate.py'},
+      {label: 'Demo /health', url: 'http://localhost:3000/health'},
+      {label: 'GitHub commits API', url: 'https://api.github.com/repos/salginci/oncall-autopilot/commits'},
+    ]
+  },
+  5: {
+    title: 'Step 6: Qwen REMEDIATE',
+    desc: 'Given the root cause (pool_size: 20→0), Qwen generates a concrete <b>fix plan</b> including: specific <b>commands</b> to execute, a <b>risk level</b> (LOW/MEDIUM/HIGH), a <b>rollback plan</b> in case something goes wrong, and always sets <code>requires_approval: true</code> for human-in-the-loop safety. The fix action is typically a pool restore or commit revert.',
+    links: [
+      {label: 'remediate.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/agents/remediate.py'},
+      {label: 'Demo /admin/pool/20', url: 'http://localhost:3000/admin/pool/20'},
+    ]
+  },
+  6: {
+    title: 'Step 7: WAITING APPROVAL',
+    desc: 'The incident enters the <b>human-in-the-loop</b> gate. The proposed fix is displayed but <b>NOT executed yet</b>. A human operator must review the Qwen analysis, verify the evidence, and explicitly click <b>Approve & Fix</b> or <b>Deny</b>. If denied, an override command can be specified. This is the critical safety checkpoint — the agent does not act autonomously on production.',
+    links: [
+      {label: 'engine.py — approve/deny', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/engine.py'},
+      {label: 'Agent /api/incidents', url: 'http://localhost:8080/api/incidents'},
+    ]
+  },
+  7: {
+    title: 'Step 8: Fix Executed → Service Recovered',
+    desc: 'After human approval, the fix is executed: the agent calls <code>POST /admin/pool/20</code> on the demo service, restoring the connection pool. The incident transitions to <b>RESOLVED</b>. The monitor loop confirms the error rate drops back below threshold and the service returns to <b>healthy</b> state. The incident lifecycle is complete and stored in Redis.',
+    links: [
+      {label: 'Demo /health', url: 'http://localhost:3000/health'},
+      {label: 'Demo /metrics', url: 'http://localhost:3000/metrics'},
+      {label: 'Incident state flow', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/state_machine.py'},
+    ]
+  },
+};
+
+function showStepDetail(step) {
+  const data = STEP_DETAILS[step];
+  if (!data) return;
+  const box = document.getElementById('step-detail-box');
+  document.getElementById('step-detail-title').textContent = data.title;
+  document.getElementById('step-detail-desc').innerHTML = data.desc;
+
+  const linksHtml = data.links.map(l =>
+    `<a class="ext" href="${l.url}" target="_blank">${l.label}</a>`
+  ).join('');
+
+  if (data.dynamic) {
+    document.getElementById('step-detail-links').innerHTML = linksHtml + ' <span style="color:var(--muted);font-size:11px">fetching…</span>';
+    fetch(`${AGENT}/api/dashboard/latest-commit`).then(r=>r.json()).then(c => {
+      const shaUrl = c.url || `https://github.com/salginci/oncall-autopilot/commits/main`;
+      const commitLink = `<a class="ext" href="${shaUrl}" target="_blank" style="color:var(--red)">${c.short_sha || 'latest'} — ${c.message || 'commit diff'}</a>`;
+      const files = (c.files_changed || []).map(f => `<span style="color:var(--orange);font-size:11px">${f}</span>`).join(', ');
+      document.getElementById('step-detail-links').innerHTML = `
+        <div style="margin-bottom:6px"><b style="color:var(--red);font-size:11px">Latest commit:</b> ${commitLink}</div>
+        ${files ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Files changed: ${files}</div>` : ''}
+        ${linksHtml}
+      `;
+    }).catch(() => {
+      document.getElementById('step-detail-links').innerHTML = linksHtml;
+    });
+  } else {
+    document.getElementById('step-detail-links').innerHTML = linksHtml;
+  }
+
+  box.classList.add('visible');
+  box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -499,6 +622,11 @@ async function bgPoll() {
 
 setInterval(bgPoll, 1500);
 bgPoll();
+
+// Attach click handlers to flow steps
+document.querySelectorAll('.flow-step').forEach(el => {
+  el.addEventListener('click', () => showStepDetail(parseInt(el.dataset.step)));
+});
 </script>
 </body>
 </html>

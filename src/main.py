@@ -8,6 +8,7 @@ from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_in
 from src.db.state_store import StateStore
 from src.tools.metrics import metrics_tool
 from src.tools.deploy import deploy_tool
+from src.config import settings
 from src.observability import logger
 
 monitor_task = None
@@ -105,7 +106,7 @@ async def dashboard_trigger():
     import httpx
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post("http://demo-service:3000/admin/pool/0")
+            resp = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
             data = resp.json()
             return {"status": "triggered", "pool_size": data.get("pool_size", 0)}
     except Exception as e:
@@ -117,7 +118,7 @@ async def dashboard_reset():
     try:
         import httpx
         async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post("http://demo-service:3000/admin/pool/20")
+            await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/20")
     except Exception:
         pass
     PENDING_APPROVALS.clear()
@@ -135,6 +136,23 @@ async def dashboard_reset():
 @app.get("/api/dashboard/logs")
 async def dashboard_logs(limit: int = Query(default=50, le=200)):
     return {"logs": logger.recent(limit)}
+
+
+@app.get("/api/dashboard/latest-commit")
+async def latest_commit():
+    from src.tools.github import github_tool
+    commits = await github_tool.get_recent_commits(since_minutes=60, limit=5)
+    if commits:
+        c = commits[0]
+        return {
+            "sha": c.sha,
+            "short_sha": c.sha[:7],
+            "message": c.message,
+            "author": c.author,
+            "files_changed": c.files_changed,
+            "url": f"https://github.com/salginci/oncall-autopilot/commit/{c.sha}",
+        }
+    return {"sha": None, "message": "No recent commits"}
 
 
 @app.get("/api/incidents")

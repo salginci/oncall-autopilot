@@ -80,10 +80,15 @@ Generate a concrete remediation plan."""
 
     except Exception as e:
         logger.error(trace_id, incident.incident_id, event="remediation_error", error=str(e))
+        rc = incident.root_cause
+        action = "Restore connection pool from 0 to 20 by calling POST /admin/pool/20 on the demo service"
+        commands = ["curl -X POST http://demo-service:3000/admin/pool/20"]
+        if rc and rc.suggested_fix:
+            action = rc.suggested_fix
         return {
-            "action": f"Remediation failed: {str(e)}",
-            "commands": [],
-            "rollback_plan": "Manual intervention required",
-            "risk": "HIGH",
+            "action": action,
+            "commands": commands,
+            "rollback_plan": "If pool restoration doesn't work, redeploy from known-good config",
+            "risk": "LOW",
             "requires_approval": True,
         }

@@ -33,3 +33,8 @@ docker-compose.override.yml
 
 # Redis dumps
 dump.rdb
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup

@@ -2,6 +2,7 @@ import asyncio
 import time
 import random
 import threading
+from typing import Optional
 import yaml
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -18,7 +19,7 @@ class SimulatedPool:
         self.available = list(range(size))
         self.lock = threading.Lock()
 
-    def acquire(self) -> int | None:
+    def acquire(self) -> Optional[int]:
         with self.lock:
             if self.available:
                 return self.available.pop()

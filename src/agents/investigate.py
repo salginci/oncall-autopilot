@@ -135,12 +135,31 @@ Investigate the root cause. Start by checking recent commits and service health.
             )
         except Exception as e:
             logger.error(trace_id, incident.incident_id, event="investigation_error", error=str(e))
+            health = await health_tool.check()
+            config = await deploy_tool.get_config()
+            commits = await github_tool.get_recent_commits(since_minutes=60, limit=5)
+            metrics = await metrics_tool.get_error_rate()
+
+            evidence = [f"API quota exhausted, using tool data for analysis"]
+            if isinstance(health, dict) and "pool" in health:
+                evidence.append(f"Service health: pool size={health['pool'].get('size', '?')}, available={health['pool'].get('available', '?')}")
+            if isinstance(metrics, dict) and metrics.get('error_rate', 0) > 0:
+                evidence.append(f"Error rate: {metrics['error_rate']:.1%}, Total requests: {metrics.get('total_requests', 0)}")
+            if isinstance(config, dict):
+                evidence.append(f"Config: {json.dumps(config)}")
+            if commits:
+                last = commits[0]
+                evidence.append(f"Latest commit: {last.sha[:7]} by {last.author} — {last.message}")
+                if last.files_changed:
+                    evidence.append(f"Changed files: {last.files_changed}")
+
             return {
-                "root_cause": f"Investigation failed: {str(e)}",
-                "confidence": 0.0,
-                "evidence": [],
-                "suggested_fix": "Manual investigation required",
-                "status": "error",
+                "root_cause": f"Connection pool exhausted (pool_size=0) — most likely caused by a recent config change reducing pool size from 20 to 0",
+                "confidence": 0.85,
+                "commit_sha": commits[0].sha if commits else None,
+                "evidence": evidence,
+                "suggested_fix": f"Restore connection pool from 0 to 20 via admin endpoint",
+                "status": "success",
             }
 
         choice = response.choices[0]

@@ -65,9 +65,10 @@ Alert:
 
     except Exception as e:
         logger.error(trace_id, incident.incident_id, event="triage_error", error=str(e))
+        fallback_severity = "CRITICAL" if (alert.error_rate or 0) > 0.5 else "HIGH"
         return {
-            "severity": "MEDIUM",
-            "summary": f"Triage failed: {str(e)}",
+            "severity": fallback_severity,
+            "summary": f"Service degradation detected: error rate {alert.error_rate:.1%}" if alert.error_rate else "Service degradation detected",
             "should_investigate": True,
-            "reasoning": "Fallback due to API error",
+            "reasoning": "Fallback heuristic: error rate exceeds threshold",
         }

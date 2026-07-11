@@ -125,7 +125,7 @@
         </div>
         <div class="flow-step" data-step="1">
           <span class="indicator">2</span>
-          <span class="label">Agent detects commit + reloads service<div class="detail">Commit watcher sees config.yaml change, triggers /admin/pool/0</div></span>
+          <span class="label">Agent detects the bad commit<div class="detail">Commit watcher polls GitHub, sees the config.yaml change, logs the bad deploy</div></span>
         </div>
         <div class="flow-step" data-step="2">
           <span class="indicator">3</span>
@@ -510,8 +510,8 @@ const STEP_DETAILS = {
     links: [],
   },
   1: {
-    title: 'Step 2: Agent detects commit + reloads',
-    desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle. When it detects a new commit touching a <code>*.yaml</code> file, it triggers <code>POST /admin/pool/0</code> on the demo service, reloading it with the bad config.',
+    title: 'Step 2: Agent detects the bad commit',
+    desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle and detects the new commit touching <code>demo/service/config.yaml</code>, logging the bad deploy. The connection pool is already exhausted (<code>pool_size = 0</code>) from that config change, so the service is returning HTTP 503 — which the monitor loop picks up next.',
     links: [
       {label: 'watcher.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/tools/watcher.py'},
       {label: 'Demo /admin/reload', url: '${DEMO}/admin/reload'},

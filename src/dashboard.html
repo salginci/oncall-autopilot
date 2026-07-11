@@ -680,6 +680,25 @@ async function showStepDetail(step) {
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// If the backend has an incident sitting at the approval gate and the UI is idle (e.g. the
+// page was just (re)opened), restore the WAITING APPROVAL view so it's clear an incident is in
+// progress — rather than showing an idle flow next to a degraded service.
+function resumeIfPending(d, det) {
+  const gsEl = document.getElementById('global-status');
+  const idle = (gsEl.textContent === 'Idle — Ready' || gsEl.textContent === 'Initializing...');
+  if (!(d.pending_approval && det && det.root_cause && idle)) return;
+  currentIncident = d.pending_approval;
+  flowProgress = 6;              // lets the Qwen-panel render below fire
+  setFlowStep(6);                // WAITING APPROVAL step active
+  gsEl.textContent = 'WAITING APPROVAL';
+  document.getElementById('global-dot').className = 'status-dot active';
+  document.getElementById('btn-approve').disabled = false;
+  document.getElementById('btn-deny').disabled = false;
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('action-context').innerHTML =
+    '<b style="color:var(--orange)">Incident awaiting approval</b><br/>An incident is already in progress. Review the Qwen analysis below, then click <b style="color:var(--green)">Review &amp; Approve</b> to fix it — or <b>Reset</b> to clear it.';
+}
+
 // Background poll for metrics + Qwen data
 async function bgPoll() {
   try {
@@ -709,8 +728,12 @@ async function bgPoll() {
       gs.textContent = 'Idle — Ready';
     }
 
-    // Update Qwen panel if we have incident detail
+    // Resume an in-progress incident on (re)load — so a visitor who opens the dashboard while
+    // an incident is unresolved sees the WAITING APPROVAL state (not a confusing degraded-idle).
     const det = d.incident_detail;
+    resumeIfPending(d, det);
+
+    // Update Qwen panel if we have incident detail
     if (det && det.root_cause && flowProgress >= 5) {
       const panel = document.getElementById('qwen-panel');
       panel.classList.add('visible');

@@ -200,7 +200,7 @@
 
 <script>
 const AGENT = '';
-const DEMO = (() => { const h = window.location.hostname; return h === 'localhost' || h === '127.0.0.1' ? 'http://localhost:3000' : `http://${h}:3000`; })();
+const DEMO = (() => { const h = window.location.hostname; return h === 'localhost' || h === '127.0.0.1' ? 'http://localhost:3000' : '/demo'; })();
 let currentIncident = null;
 let flowProgress = 0;
 let flowTimer = null;

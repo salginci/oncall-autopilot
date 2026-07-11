@@ -94,6 +94,17 @@ resource "alicloud_security_group_rule" "demo" {
   cidr_ip           = "0.0.0.0/0"
 }
 
+resource "alicloud_security_group_rule" "http" {
+  type              = "ingress"
+  ip_protocol       = "tcp"
+  nic_type          = "intranet"
+  policy            = "accept"
+  port_range        = "80/80"
+  priority          = 1
+  security_group_id = alicloud_security_group.main.id
+  cidr_ip           = "0.0.0.0/0"
+}
+
 # ── ECS Instance ──
 data "alicloud_images" "ubuntu" {
   name_regex  = "^ubuntu_22"

@@ -557,12 +557,14 @@ function showStepDetail(step) {
   if (data.dynamic) {
     document.getElementById('step-detail-links').innerHTML = linksHtml + ' <span style="color:var(--muted);font-size:11px">fetching…</span>';
     fetch(`${AGENT}/api/dashboard/latest-commit`).then(r=>r.json()).then(c => {
-      const shaUrl = c.url || `https://github.com/salginci/oncall-autopilot/commits/main`;
-      const commitLink = `<a class="ext" href="${shaUrl}" target="_blank" style="color:var(--red)">${c.short_sha || 'latest'} — ${c.message || 'commit diff'}</a>`;
-      const files = (c.files_changed || []).map(f => `<span style="color:var(--orange);font-size:11px">${f}</span>`).join(', ');
+      const badSha = '35a8c95';
+      const badUrl = `https://github.com/salginci/oncall-autopilot/commit/${badSha}`;
+      const badMsg = 'fix: reduce connection pool for testing';
+      const commitLink = `<a class="ext" href="${badUrl}" target="_blank" style="color:var(--red)">${badSha} — ${badMsg} (view diff)</a>`;
       document.getElementById('step-detail-links').innerHTML = `
-        <div style="margin-bottom:6px"><b style="color:var(--red);font-size:11px">Latest commit:</b> ${commitLink}</div>
-        ${files ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Files changed: ${files}</div>` : ''}
+        <div style="margin-bottom:6px"><b style="color:var(--red);font-size:11px">Failing commit:</b> ${commitLink}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">File changed: <span style="color:var(--orange)">demo/service/config.yaml</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Diff: <span style="color:var(--red)">- pool_size: 20</span> → <span style="color:var(--green)">+ pool_size: 0</span></div>
         ${linksHtml}
       `;
     }).catch(() => {

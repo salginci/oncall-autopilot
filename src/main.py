@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from src.api.webhook import router as webhook_router
 from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop
 from src.db.state_store import StateStore
@@ -40,6 +40,11 @@ app.include_router(webhook_router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "oncall-autopilot"}
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/dashboard")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)

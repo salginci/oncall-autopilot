@@ -161,15 +161,28 @@ async def dashboard_trigger():
     except Exception as e:
         result["commit_error"] = str(e)
 
-    # 2. Trigger the outage on the demo service immediately (snappy for the video; the watcher
-    #    would also apply pool_size=0 from the commit on its next poll).
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
-            data = resp.json()
-            result["pool_size"] = data.get("pool_size", 0)
-    except Exception as e:
-        result["pool_error"] = str(e)
+    # 2. Break the running service — retry AND verify. A single fire is unreliable: under load
+    #    the /admin/pool/0 request can time out (sometimes after the pool already changed,
+    #    sometimes before it lands), leaving the running service inconsistent with the commit
+    #    (e.g. GitHub shows pool_size 0 but the service is still healthy at 20). We retry and
+    #    confirm via /health that the pool actually reached 0.
+    result["broke"] = False
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for _ in range(5):
+            try:
+                await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
+            except Exception as e:
+                result["pool_error"] = str(e) or type(e).__name__
+            try:
+                health = (await client.get(f"{settings.DEMO_SERVICE_URL}/health")).json()
+                if health.get("pool", {}).get("size") == 0:
+                    result["broke"] = True
+                    result["pool_size"] = 0
+                    result.pop("pool_error", None)
+                    break
+            except Exception as e:
+                result["pool_error"] = str(e) or type(e).__name__
+            await asyncio.sleep(0.3)
 
     return result
 

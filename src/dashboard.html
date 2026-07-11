@@ -57,6 +57,8 @@
   .qwen-panel .field{margin-bottom:6px;font-size:12px;line-height:1.4;}
   .qwen-panel .field b{color:var(--blue);}
   .qwen-panel .evidence{font-size:11px;color:var(--muted);margin:4px 0 4px 12px;}
+  #recovery-panel{background:#0a2e14;border-color:var(--green);}
+  #recovery-panel .title{color:var(--green);}
 
   .approval-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;
     justify-content:center;align-items:center;z-index:100;}
@@ -105,8 +107,8 @@
 <div class="grid">
   <!-- Left: Service metrics -->
   <div class="panel">
-    <h2>Orders Service :3000</h2>
-    <div class="metric"><span>Status</span><span class="val" id="m-status">—</span></div>
+    <h2><a class="ext" href="#" onclick="window.open(DEMO+'/health');return false" style="color:var(--blue)" title="Open the live orders-service /health in a new tab">Orders Service :3000</a></h2>
+    <div class="metric"><span>Status</span><span class="val" id="m-status">…</span></div>
     <div class="metric"><span>Pool Size</span><span class="val" id="m-pool">—</span></div>
     <div class="metric"><span>Available</span><span class="val" id="m-avail">—</span></div>
     <div class="metric"><span>Error Rate</span><span class="val" id="m-error">—</span></div>
@@ -125,7 +127,7 @@
         </div>
         <div class="flow-step" data-step="1">
           <span class="indicator">2</span>
-          <span class="label">Agent detects commit + reloads service<div class="detail">Commit watcher sees config.yaml change, triggers /admin/pool/0</div></span>
+          <span class="label">Agent detects the bad commit<div class="detail">Commit watcher polls GitHub, sees the config.yaml change, logs the bad deploy</div></span>
         </div>
         <div class="flow-step" data-step="2">
           <span class="indicator">3</span>
@@ -156,6 +158,10 @@
     <div class="qwen-panel" id="qwen-panel">
       <div class="title">Qwen Analysis</div>
       <div id="qwen-content"></div>
+    </div>
+    <div class="qwen-panel" id="recovery-panel">
+      <div class="title">Recovery Result</div>
+      <div id="recovery-content"></div>
     </div>
   </div>
 
@@ -206,6 +212,7 @@ let flowProgress = 0;
 let flowTimer = null;
 let currentCommitUrl = null;
 let currentCommitSha = null;
+let currentCommitMsg = null;
 
 function ts() { return new Date().toLocaleTimeString('en-US',{hour12:false}); }
 
@@ -268,27 +275,73 @@ function closeApproval() {
 async function confirmApprove() {
   closeApproval();
   addLog('HUMAN → Approved fix', 'ok');
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Executing fix...</b><br/>Restoring pool to 20';
+
+  // Enter the EXECUTING state immediately (before the multi-second revert) so the controls
+  // don't keep looking clickable and it's clear the fix is running.
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('global-dot').className = 'status-dot active';
+  document.getElementById('global-status').textContent = 'EXECUTING FIX';
+  setFlowStep(7);
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Executing fix…</b><br/>Reverting the bad commit on GitHub and restoring the pool to 20…';
 
   if (!currentIncident) {
     const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
     currentIncident = d.pending_approval;
   }
+
+  let approveResult = null;
   if (currentIncident) {
-    await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'});
+    try {
+      approveResult = await (await fetch(`${AGENT}/api/incidents/${currentIncident}/approve`, {method:'POST'})).json();
+    } catch(e) {}
   }
-  addLog('FIX → Pool restored to 20, service recovered', 'ok');
-  setFlowStep(7);
-  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Service Recovered!</b><br/>Pool: 20/20, Error rate: 0%';
+
+  // Pull the real revert commit the agent created (returned by the approve API).
+  let revertSha = null;
+  if (approveResult && Array.isArray(approveResult.details)) {
+    for (const d of approveResult.details) {
+      if (d && d.github_revert && d.github_revert.revert_sha) revertSha = d.github_revert.revert_sha;
+    }
+  }
+
+  addLog('FIX → Reverted bad commit' + (revertSha ? ' ('+revertSha.substring(0,7)+')' : '') + ', pool restored to 20', 'ok');
   document.getElementById('global-dot').className = 'status-dot resolved';
   document.getElementById('global-status').textContent = 'Resolved';
+  document.getElementById('action-context').innerHTML = '<b style="color:var(--green)">Service Recovered!</b><br/>Pool: 20/20, Error rate: 0%';
+
+  renderRecovery(revertSha);
 
   document.getElementById('btn-trigger').disabled = false;
   document.getElementById('btn-approve').disabled = true;
   document.getElementById('btn-deny').disabled = true;
 }
 
+function renderRecovery(revertSha) {
+  const repo = 'https://github.com/salginci/oncall-autopilot';
+  const shaShort = revertSha ? revertSha.substring(0,7) : null;
+  const revertLink = shaShort
+    ? `<a class="ext" href="${repo}/commit/${revertSha}" target="_blank">${shaShort}</a>`
+    : '<span style="color:var(--muted)">(revert commit)</span>';
+  document.getElementById('recovery-content').innerHTML = `
+    <div class="field"><b>Executed:</b> Agent reverted the breaking commit on <code>main</code> and restored <code>pool_size</code> → 20</div>
+    <div class="field"><b>Commands run:</b><div class="evidence">• git revert of the pool_size→0 commit → new commit ${revertLink}</div><div class="evidence">• POST /admin/pool/20 on the orders-service</div></div>
+    <div class="field"><b>Revert commit:</b> ${revertLink}</div>
+    <div class="field"><b>Result:</b> <span style="color:var(--green)">Pool 20/20, error rate 0%, status healthy</span></div>
+    <div style="margin-top:8px">
+      <a class="ext" href="${repo}/commits/main" target="_blank">Commit history</a> &nbsp;
+      <a class="ext" href="${DEMO}/health" target="_blank">Verify /health</a> &nbsp;
+      <a class="ext" href="${DEMO}/metrics" target="_blank">Verify /metrics</a>
+    </div>`;
+  document.getElementById('recovery-panel').classList.add('visible');
+}
+
 async function triggerIncident() {
+  // Lock the trigger for the whole run so a double-click can't fire two incidents.
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
   addLog('TRIGGER → Reducing pool from 20 to 0...', 'event');
   document.getElementById('action-context').innerHTML = `
     <b style="color:var(--red)">Bad commit pushed to GitHub</b><br/><br/>
@@ -366,13 +419,14 @@ async function triggerIncident() {
 
   await delay(3000); setFlowStep(6);
 
-  // Try to get actual Qwen analysis from backend
-  let qwenData = null;
-  try {
-    const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
-    qwenData = d.incident_detail;
-    if (qwenData && qwenData.pending_approval) currentIncident = d.pending_approval;
-  } catch(e) {}
+  // Safety net: the animation above runs on fixed timers, but "Review & Approve" must only
+  // light up once the REAL backend incident + Qwen analysis exist and it has reached the
+  // human-approval gate. Poll until ready (or the budget elapses) instead of a single fetch.
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--purple)">Qwen analyzing…</b><br/><br/>
+    <span style="color:var(--muted)">Waiting for the agent to finish triage → investigate → remediate and reach the human-approval gate.</span>
+  `;
+  let qwenData = await waitForIncidentReady(20000);
 
   if (qwenData && qwenData.root_cause) {
     // Show real Qwen analysis
@@ -429,21 +483,41 @@ async function triggerIncident() {
       <span>Risk: </span><b>${rem.risk||'—'}</b><br/><br/>
       <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see full details and execute.</span>
     `;
-  } else {
-    document.getElementById('action-context').innerHTML = `
-      <b style="color:var(--orange)">Review Required</b><br/><br/>
-      <span>Qwen has completed analysis and proposed a fix.</span><br/><br/>
-      <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see the full analysis and execute the fix.</span>
-    `;
   }
 
-  addLog('STATE → WAITING APPROVAL — human review required', 'event');
+  if (qwenData && qwenData.root_cause) {
+    // Backend is genuinely at the approval gate — enable the human-in-the-loop controls.
+    addLog('STATE → WAITING APPROVAL — human review required', 'event');
+    document.getElementById('global-dot').className = 'status-dot active';
+    document.getElementById('global-status').textContent = 'WAITING APPROVAL';
+    document.getElementById('btn-approve').disabled = false;
+    document.getElementById('btn-deny').disabled = false;
+    document.getElementById('btn-trigger').disabled = true;
+  } else {
+    // Budget elapsed without a ready incident. Keep Approve disabled so it can never be a
+    // dead button; bgPoll() will enable it automatically if the incident lands shortly after.
+    addLog('WAIT → Incident not yet ready for approval — will enable when the agent catches up', 'err');
+    document.getElementById('action-context').innerHTML = `
+      <b style="color:var(--orange)">Agent still working…</b><br/><br/>
+      <span>The incident hasn't reached the approval gate yet. Approve will light up automatically the moment it's ready, or click <b>Reset</b> to try again.</span>
+    `;
+    document.getElementById('global-dot').className = 'status-dot active';
+    document.getElementById('global-status').textContent = 'ANALYZING';
+  }
+}
 
-  document.getElementById('global-dot').className = 'status-dot active';
-  document.getElementById('global-status').textContent = 'WAITING APPROVAL';
-  document.getElementById('btn-approve').disabled = false;
-  document.getElementById('btn-deny').disabled = false;
-  document.getElementById('btn-trigger').disabled = true;
+async function waitForIncidentReady(budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    try {
+      const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+      if (d.pending_approval) currentIncident = d.pending_approval;
+      const det = d.incident_detail;
+      if (det && det.root_cause && d.pending_approval) return det;
+    } catch(e) {}
+    await delay(1000);
+  }
+  return null;
 }
 
 async function denyIncident() {
@@ -465,6 +539,7 @@ async function resetAll() {
 function resetUI() {
   setFlowStep(-1);
   document.getElementById('qwen-panel').classList.remove('visible');
+  document.getElementById('recovery-panel').classList.remove('visible');
   document.getElementById('step-detail-box').classList.remove('visible');
   document.getElementById('global-dot').className = 'status-dot idle';
   document.getElementById('global-status').textContent = 'Idle — Ready';
@@ -479,15 +554,13 @@ function resetUI() {
 const STEP_DETAILS = {
   0: {
     title: 'Step 1: Bad commit pushed to GitHub',
-    desc: 'A developer pushes a commit that changes <b>demo/service/config.yaml</b>, reducing <code>pool_size</code> from <b>20 → 0</b>. This simulates a production config error — the database connection pool is now exhausted, causing all requests to fail with HTTP 503.',
-    links: [
-      {label: 'GitHub Repo', url: 'https://github.com/salginci/oncall-autopilot'},
-      {label: 'config.yaml', url: 'https://github.com/salginci/oncall-autopilot/blob/main/demo/service/config.yaml'},
-    ],
+    desc: 'The <b>Trigger</b> pushes a <b>real commit</b> to <code>demo/service/config.yaml</code> on <code>main</code> via the GitHub API, reducing <code>pool_size</code> from <b>20 → 0</b>. This is an actual production config error — the database connection pool is now exhausted, so all requests fail with HTTP 503. The links below point to the exact commit that was just pushed.',
+    // links for this step are built dynamically from the real commit in showStepDetail()
+    links: [],
   },
   1: {
-    title: 'Step 2: Agent detects commit + reloads',
-    desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle. When it detects a new commit touching a <code>*.yaml</code> file, it triggers <code>POST /admin/pool/0</code> on the demo service, reloading it with the bad config.',
+    title: 'Step 2: Agent detects the bad commit',
+    desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle and detects the new commit touching <code>demo/service/config.yaml</code>, logging the bad deploy. The connection pool is already exhausted (<code>pool_size = 0</code>) from that config change, so the service is returning HTTP 503 — which the monitor loop picks up next.',
     links: [
       {label: 'watcher.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/tools/watcher.py'},
       {label: 'Demo /admin/reload', url: '${DEMO}/admin/reload'},
@@ -548,33 +621,56 @@ const STEP_DETAILS = {
   },
 };
 
-function showStepDetail(step) {
+async function showStepDetail(step) {
   const data = STEP_DETAILS[step];
   if (!data) return;
   const box = document.getElementById('step-detail-box');
   document.getElementById('step-detail-title').textContent = data.title;
 
   let descHtml = data.desc;
+  let links = data.links.slice();
 
   if (step === 0) {
-    const sha = currentCommitSha || '35a8c95';
-    const url = currentCommitUrl || 'https://github.com/salginci/oncall-autopilot/commit/35a8c95';
-    const msg = currentCommitMsg || 'fix: reduce connection pool for testing';
-    descHtml += `
-      <div style="margin-top:8px;padding:8px;background:#0d1117;border-radius:6px;font-size:11px;line-height:1.6">
-        <div style="margin-bottom:4px"><b style="color:var(--red)">Breaking commit:</b>
-          <a class="ext" style="color:var(--red)" href="${url}" target="_blank">${sha.substring(0,7)}</a>
-          — <span style="color:var(--muted)">${msg}</span></div>
-        <div><span style="color:var(--muted)">Changed:</span> <span style="color:var(--orange)">demo/service/config.yaml</span></div>
-        <div><span style="color:var(--red)">- pool_size: 20</span></div>
-        <div><span style="color:var(--green)">+ pool_size: 0</span></div>
-        <div style="margin-top:4px"><span style="color:var(--muted);font-size:10px">Click the commit SHA to view the full diff on GitHub</span></div>
-      </div>`;
+    // Resolve the REAL breaking commit — no fabricated fallback SHA. Prefer the commit recorded
+    // when Trigger ran this session; if unavailable (e.g. page reload), ask the backend for the
+    // latest commit on main (which, during an active incident, IS the pool_size→0 commit).
+    let sha = currentCommitSha, url = currentCommitUrl, msg = currentCommitMsg;
+    if (!sha) {
+      try {
+        const c = await (await fetch(`${AGENT}/api/dashboard/latest-commit`)).json();
+        if (c && c.sha) { sha = c.sha; url = c.url; msg = c.message; }
+      } catch(e) {}
+    }
+
+    if (sha) {
+      descHtml += `
+        <div style="margin-top:8px;padding:8px;background:#0d1117;border-radius:6px;font-size:11px;line-height:1.6">
+          <div style="margin-bottom:4px"><b style="color:var(--red)">Commit pushed to GitHub:</b>
+            <a class="ext" style="color:var(--red)" href="${url}" target="_blank">${sha.substring(0,7)}</a>
+            — <span style="color:var(--muted)">${msg||''}</span></div>
+          <div><span style="color:var(--muted)">Changed:</span> <span style="color:var(--orange)">demo/service/config.yaml</span></div>
+          <div><span style="color:var(--red)">- pool_size: 20</span></div>
+          <div><span style="color:var(--green)">+ pool_size: 0</span></div>
+          <div style="margin-top:4px"><span style="color:var(--muted);font-size:10px">Click the commit to view the full diff on GitHub</span></div>
+        </div>`;
+      // Real, commit-specific links (not a generic repo link).
+      links = [
+        {label: 'View the pushed commit', url: url},
+        {label: 'config.yaml at this commit', url: `https://github.com/salginci/oncall-autopilot/blob/${sha}/demo/service/config.yaml`},
+        {label: 'Commit history', url: 'https://github.com/salginci/oncall-autopilot/commits/main'},
+      ];
+    } else {
+      descHtml += `
+        <div style="margin-top:8px;padding:8px;background:#0d1117;border-radius:6px;font-size:11px;color:var(--muted)">
+          No commit recorded yet — click <b style="color:var(--red)">Trigger Incident</b> to push the real pool_size→0 commit, then reopen this step.
+        </div>`;
+      links = [{label: 'Commit history', url: 'https://github.com/salginci/oncall-autopilot/commits/main'}];
+    }
   }
 
   document.getElementById('step-detail-desc').innerHTML = descHtml;
 
-  document.getElementById('step-detail-links').innerHTML = data.links.map(l =>
+  document.getElementById('step-detail-links').innerHTML = links.map(l =>
     `<a class="ext" href="${l.url}" target="_blank">${l.label}</a>`
   ).join('');
 
@@ -584,6 +680,25 @@ function showStepDetail(step) {
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// If the backend has an incident sitting at the approval gate and the UI is idle (e.g. the
+// page was just (re)opened), restore the WAITING APPROVAL view so it's clear an incident is in
+// progress — rather than showing an idle flow next to a degraded service.
+function resumeIfPending(d, det) {
+  const gsEl = document.getElementById('global-status');
+  const idle = (gsEl.textContent === 'Idle — Ready' || gsEl.textContent === 'Initializing...');
+  if (!(d.pending_approval && det && det.root_cause && idle)) return;
+  currentIncident = d.pending_approval;
+  flowProgress = 6;              // lets the Qwen-panel render below fire
+  setFlowStep(6);                // WAITING APPROVAL step active
+  gsEl.textContent = 'WAITING APPROVAL';
+  document.getElementById('global-dot').className = 'status-dot active';
+  document.getElementById('btn-approve').disabled = false;
+  document.getElementById('btn-deny').disabled = false;
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('action-context').innerHTML =
+    '<b style="color:var(--orange)">Incident awaiting approval</b><br/>An incident is already in progress. Review the Qwen analysis below, then click <b style="color:var(--green)">Review &amp; Approve</b> to fix it — or <b>Reset</b> to clear it.';
+}
+
 // Background poll for metrics + Qwen data
 async function bgPoll() {
   try {
@@ -591,19 +706,34 @@ async function bgPoll() {
     const svc = d.service || {};
 
     const er = ((svc.error_rate||0)*100).toFixed(1);
+    // Use ?? (not ||) so a real 0 renders as "0" and colors correctly instead of being
+    // treated as falsy ("—"/green).
+    const poolSize = svc.pool_size, poolAvail = svc.pool_available;
     document.getElementById('m-status').textContent = svc.status||'—';
     document.getElementById('m-status').className = 'val '+(svc.status==='healthy'?'ok':'bad');
-    document.getElementById('m-pool').textContent = svc.pool_size||'—';
-    document.getElementById('m-pool').className = 'val '+((svc.pool_size||20)<2?'bad':'ok');
-    document.getElementById('m-avail').textContent = svc.pool_available||'—';
-    document.getElementById('m-avail').className = 'val '+((svc.pool_available||0)===0?'bad':'ok');
+    document.getElementById('m-pool').textContent = (poolSize ?? '—');
+    document.getElementById('m-pool').className = 'val '+((poolSize != null && poolSize < 2)?'bad':'ok');
+    document.getElementById('m-avail').textContent = (poolAvail ?? '—');
+    document.getElementById('m-avail').className = 'val '+((poolAvail != null && poolAvail === 0)?'bad':'ok');
     document.getElementById('m-error').textContent = er+'%';
     document.getElementById('m-error').className = 'val '+(parseFloat(er)>10?'bad':(parseFloat(er)>0?'warn':'ok'));
-    document.getElementById('m-total').textContent = svc.total_requests||'—';
+    document.getElementById('m-total').textContent = (svc.total_requests ?? '—');
     document.getElementById('m-latency').textContent = (svc.latency_p50_ms||0)+'ms';
 
-    // Update Qwen panel if we have incident detail
+    // Clear the initial "Initializing…" as soon as the first poll returns and we're idle
+    // (an active incident is handled by the safety-net block below).
+    const gs = document.getElementById('global-status');
+    if (gs.textContent === 'Initializing...' && !d.pending_approval) {
+      document.getElementById('global-dot').className = 'status-dot idle';
+      gs.textContent = 'Idle — Ready';
+    }
+
+    // Resume an in-progress incident on (re)load — so a visitor who opens the dashboard while
+    // an incident is unresolved sees the WAITING APPROVAL state (not a confusing degraded-idle).
     const det = d.incident_detail;
+    resumeIfPending(d, det);
+
+    // Update Qwen panel if we have incident detail
     if (det && det.root_cause && flowProgress >= 5) {
       const panel = document.getElementById('qwen-panel');
       panel.classList.add('visible');
@@ -623,11 +753,26 @@ async function bgPoll() {
 
     // Sync pending incident
     if (d.pending_approval) currentIncident = d.pending_approval;
+
+    // Continuous safety net: if the backend reaches the approval gate while the Approve button
+    // is still disabled mid-run (e.g. the scripted wait budget elapsed first), enable it now.
+    const triggerDisabled = document.getElementById('btn-trigger').disabled;
+    const approveDisabled = document.getElementById('btn-approve').disabled;
+    if (det && det.root_cause && d.pending_approval && approveDisabled && triggerDisabled) {
+      document.getElementById('btn-approve').disabled = false;
+      document.getElementById('btn-deny').disabled = false;
+      document.getElementById('global-dot').className = 'status-dot active';
+      document.getElementById('global-status').textContent = 'WAITING APPROVAL';
+    }
   } catch(e) {}
 }
 
 setInterval(bgPoll, 1500);
+// Front-load the first few polls so the service stats paint immediately on load
+// instead of sitting as dashes until the first 1.5s tick.
 bgPoll();
+setTimeout(bgPoll, 300);
+setTimeout(bgPoll, 800);
 
 // Attach click handlers to flow steps
 document.querySelectorAll('.flow-step').forEach(el => {

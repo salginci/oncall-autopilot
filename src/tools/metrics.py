@@ -27,6 +27,10 @@ class MetricsTool:
             "error_count": errors,
             "error_rate": round(rate, 4),
             "latency_p50_ms": metrics.get("latency_p50_ms", 0),
+            # Pass through the live pool state so the dashboard shows the real values
+            # (previously absent here, so the dashboard fell back to a hardcoded 20).
+            "pool_size": metrics.get("pool_size"),
+            "pool_available": metrics.get("pool_available"),
         }
 
     async def get_health(self) -> dict:

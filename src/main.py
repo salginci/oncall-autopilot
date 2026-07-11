@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from src.api.webhook import router as webhook_router
-from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop
+from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop, set_trigger_commit
 from src.db.state_store import StateStore
 from src.tools.metrics import metrics_tool
 from src.tools.deploy import deploy_tool
@@ -116,12 +116,32 @@ async def dashboard_trigger():
 
     result = {"status": "triggered"}
 
-    # 1. Push a real commit to GitHub changing pool_size 20→0
+    # 1. Push a single real breaking commit to GitHub changing pool_size 20→0.
+    #    We intentionally do NOT auto-restore here — the bad commit stays on main until a
+    #    human approves the fix, at which point the agent pushes a real revert. This keeps the
+    #    demo authentic (GitHub history shows break → genuine revert) and lets the commit
+    #    watcher converge the service to the committed value without a self-heal race.
     try:
         repo = github_tool.repo
         file_path = "demo/service/config.yaml"
         contents = repo.get_contents(file_path, ref="main")
         config = yaml.safe_load(base64.b64decode(contents.content))
+
+        # Ensure a healthy baseline (pool_size=20) before breaking, so the breaking commit
+        # always shows a real 20→0 diff. Without this, a prior un-reverted trigger leaves main
+        # at 0 and writing 0 again produces an empty "0 file changed" commit.
+        if config["database"].get("pool_size") != 20:
+            config["database"]["pool_size"] = 20
+            baseline = repo.update_file(
+                path=file_path,
+                message="chore: restore baseline pool to 20 before demo",
+                content=yaml.dump(config, default_flow_style=False),
+                sha=contents.sha,
+                branch="main",
+            )
+            contents = repo.get_contents(file_path, ref="main")
+            config = yaml.safe_load(base64.b64decode(contents.content))
+
         config["database"]["pool_size"] = 0
         new_content = yaml.dump(config, default_flow_style=False)
         commit_msg = f"BREAKING: reduce connection pool to 0 (simulated outage {datetime.now(timezone.utc).strftime('%H:%M:%S')})"
@@ -136,34 +156,33 @@ async def dashboard_trigger():
         result["commit_sha"] = commit_sha
         result["commit_url"] = f"https://github.com/salginci/oncall-autopilot/commit/{commit_sha}"
         result["commit_message"] = commit_msg
+        # Record the breaking SHA so approval can revert exactly this commit.
+        set_trigger_commit(commit_sha)
     except Exception as e:
         result["commit_error"] = str(e)
 
-    # 2. Restore pool to 20 immediately (so the demo keeps working after the demo)
-    try:
-        repo = github_tool.repo
-        contents = repo.get_contents(file_path, ref="main")
-        config = yaml.safe_load(base64.b64decode(contents.content))
-        config["database"]["pool_size"] = 20
-        new_content = yaml.dump(config, default_flow_style=False)
-        repo.update_file(
-            path=file_path,
-            message="fix: restore connection pool to 20",
-            content=new_content,
-            sha=contents.sha,
-            branch="main",
-        )
-    except Exception:
-        pass
-
-    # 3. Trigger the outage on the demo service
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
-            data = resp.json()
-            result["pool_size"] = data.get("pool_size", 0)
-    except Exception as e:
-        result["pool_error"] = str(e)
+    # 2. Break the running service — retry AND verify. A single fire is unreliable: under load
+    #    the /admin/pool/0 request can time out (sometimes after the pool already changed,
+    #    sometimes before it lands), leaving the running service inconsistent with the commit
+    #    (e.g. GitHub shows pool_size 0 but the service is still healthy at 20). We retry and
+    #    confirm via /health that the pool actually reached 0.
+    result["broke"] = False
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for _ in range(5):
+            try:
+                await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
+            except Exception as e:
+                result["pool_error"] = str(e) or type(e).__name__
+            try:
+                health = (await client.get(f"{settings.DEMO_SERVICE_URL}/health")).json()
+                if health.get("pool", {}).get("size") == 0:
+                    result["broke"] = True
+                    result["pool_size"] = 0
+                    result.pop("pool_error", None)
+                    break
+            except Exception as e:
+                result["pool_error"] = str(e) or type(e).__name__
+            await asyncio.sleep(0.3)
 
     return result
 
@@ -176,15 +195,44 @@ async def dashboard_reset():
             await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/20")
     except Exception:
         pass
-    PENDING_APPROVALS.clear()
-    store = StateStore()
-    await store.connect()
+
+    # Ensure GitHub's config.yaml is back to a clean pool_size=20 so the next take starts fresh
+    # (approval leaves a revert commit; a denied/aborted run may leave the bad commit on main).
     try:
-        active_ids = await store.list_active()
-        for aid in active_ids:
-            await store.delete(aid)
-    finally:
-        await store.disconnect()
+        import base64
+        import yaml
+        from src.tools.github import github_tool
+        repo = github_tool.repo
+        file_path = "demo/service/config.yaml"
+        contents = repo.get_contents(file_path, ref="main")
+        config = yaml.safe_load(base64.b64decode(contents.content))
+        if config["database"].get("pool_size") != 20:
+            config["database"]["pool_size"] = 20
+            repo.update_file(
+                path=file_path,
+                message="chore: reset connection pool to 20 (demo reset)",
+                content=yaml.dump(config, default_flow_style=False),
+                sha=contents.sha,
+                branch="main",
+            )
+    except Exception:
+        pass
+
+    set_trigger_commit(None)
+    PENDING_APPROVALS.clear()
+    # Clearing persisted incidents is best-effort — a transient Redis issue must not make
+    # Reset fail (the pool + GitHub cleanup above already ran).
+    try:
+        store = StateStore()
+        await store.connect()
+        try:
+            active_ids = await store.list_active()
+            for aid in active_ids:
+                await store.delete(aid)
+        finally:
+            await store.disconnect()
+    except Exception:
+        pass
     return {"status": "reset"}
 
 

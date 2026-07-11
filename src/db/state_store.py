@@ -5,6 +5,28 @@ from src.config import settings
 from src.orchestrator.models import Incident
 
 
+# Single shared client (connection pool) for the whole app. Previously every call did
+# from_url()+close(), and that churn intermittently raised "Timeout connecting to server"
+# — which could abort an incident mid-flow. A pooled client with a connect timeout and
+# retry-on-timeout is both faster and far more reliable.
+_shared_redis: Optional[redis.Redis] = None
+
+
+def _get_client() -> redis.Redis:
+    global _shared_redis
+    if _shared_redis is None:
+        _shared_redis = redis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,
+            socket_keepalive=True,
+            retry_on_timeout=True,
+            health_check_interval=30,
+        )
+    return _shared_redis
+
+
 class StateStore:
     PREFIX = "incident:"
 
@@ -12,11 +34,12 @@ class StateStore:
         self._redis: Optional[redis.Redis] = None
 
     async def connect(self):
-        self._redis = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        # Reuse the shared pooled client instead of opening a new connection each call.
+        self._redis = _get_client()
 
     async def disconnect(self):
-        if self._redis:
-            await self._redis.close()
+        # No-op: the shared client is long-lived and pooled; don't tear it down per request.
+        pass
 
     def _key(self, incident_id: str) -> str:
         return f"{self.PREFIX}{incident_id}"

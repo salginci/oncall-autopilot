@@ -1,8 +1,12 @@
 from typing import Optional
+import base64
+import yaml
 from github import Github, Auth, GithubObject
 from src.config import settings
 from src.orchestrator.models import CommitInfo
 from src.observability import logger
+
+CONFIG_FILE_PATH = "demo/service/config.yaml"
 
 
 class GitHubTool:
@@ -27,6 +31,16 @@ class GitHubTool:
                 files_changed=files,
             ))
         return commits
+
+    async def get_pool_size_at(self, ref: str = "main") -> Optional[int]:
+        """Read demo/service/config.yaml at a given ref and return database.pool_size."""
+        try:
+            contents = self.repo.get_contents(CONFIG_FILE_PATH, ref=ref)
+            config = yaml.safe_load(base64.b64decode(contents.content))
+            return int(config["database"]["pool_size"])
+        except Exception as e:
+            logger.error("github_tool", event="get_pool_size_error", ref=ref, error=str(e))
+            return None
 
     async def get_commit_diff(self, commit_sha: str) -> str:
         commit = self.repo.get_commit(commit_sha)

@@ -27,7 +27,10 @@ class SimulatedPool:
 
     def release(self, slot: int):
         with self.lock:
-            self.available.append(slot)
+            # Don't let available exceed the current size — a slot acquired before a resize
+            # and released after it would otherwise push available past size (e.g. 21 > 20).
+            if len(self.available) < self.size:
+                self.available.append(slot)
 
     def resize(self, new_size: int):
         with self.lock:
@@ -93,8 +96,11 @@ app.router.lifespan_context = lifespan
 
 @app.get("/health")
 async def health():
+    # A pool of size 0 means every request fails with 503 — report that honestly rather
+    # than always claiming "healthy" (which made the dashboard status contradict the metrics).
+    status = "healthy" if pool.size > 0 else "degraded"
     return {
-        "status": "healthy",
+        "status": status,
         "service": "orders-service",
         "pool": {"size": pool.size, "available": len(pool.available)},
     }

@@ -203,6 +203,8 @@ const AGENT = '';
 let currentIncident = null;
 let flowProgress = 0;
 let flowTimer = null;
+let currentCommitUrl = null;
+let currentCommitSha = null;
 
 function ts() { return new Date().toLocaleTimeString('en-US',{hour12:false}); }
 
@@ -301,7 +303,11 @@ async function triggerIncident() {
     <a class="ext" href="http://localhost:3000/metrics" target="_blank">Demo service /metrics</a>
   `;
 
-  await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'});
+  await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'}).then(r=>r.json()).then(data => {
+    currentCommitSha = data.commit_sha;
+    currentCommitUrl = data.commit_url;
+    currentCommitMsg = data.commit_message;
+  });
   addLog('TRIGGER → Pool now at 0 — errors flooding in', 'event');
 
   // Animate steps with delays
@@ -474,11 +480,9 @@ const STEP_DETAILS = {
     title: 'Step 1: Bad commit pushed to GitHub',
     desc: 'A developer pushes a commit that changes <b>demo/service/config.yaml</b>, reducing <code>pool_size</code> from <b>20 → 0</b>. This simulates a production config error — the database connection pool is now exhausted, causing all requests to fail with HTTP 503.',
     links: [
-      {label: 'View Latest Commit', url: 'https://github.com/salginci/oncall-autopilot/commits/main'},
-      {label: 'config.yaml', url: 'https://github.com/salginci/oncall-autopilot/blob/main/demo/service/config.yaml'},
       {label: 'GitHub Repo', url: 'https://github.com/salginci/oncall-autopilot'},
+      {label: 'config.yaml', url: 'https://github.com/salginci/oncall-autopilot/blob/main/demo/service/config.yaml'},
     ],
-    dynamic: true,
   },
   1: {
     title: 'Step 2: Agent detects commit + reloads',
@@ -548,31 +552,30 @@ function showStepDetail(step) {
   if (!data) return;
   const box = document.getElementById('step-detail-box');
   document.getElementById('step-detail-title').textContent = data.title;
-  document.getElementById('step-detail-desc').innerHTML = data.desc;
 
-  const linksHtml = data.links.map(l =>
+  let descHtml = data.desc;
+
+  if (step === 0) {
+    const sha = currentCommitSha || '35a8c95';
+    const url = currentCommitUrl || 'https://github.com/salginci/oncall-autopilot/commit/35a8c95';
+    const msg = currentCommitMsg || 'fix: reduce connection pool for testing';
+    descHtml += `
+      <div style="margin-top:8px;padding:8px;background:#0d1117;border-radius:6px;font-size:11px;line-height:1.6">
+        <div style="margin-bottom:4px"><b style="color:var(--red)">Breaking commit:</b>
+          <a class="ext" style="color:var(--red)" href="${url}" target="_blank">${sha.substring(0,7)}</a>
+          — <span style="color:var(--muted)">${msg}</span></div>
+        <div><span style="color:var(--muted)">Changed:</span> <span style="color:var(--orange)">demo/service/config.yaml</span></div>
+        <div><span style="color:var(--red)">- pool_size: 20</span></div>
+        <div><span style="color:var(--green)">+ pool_size: 0</span></div>
+        <div style="margin-top:4px"><span style="color:var(--muted);font-size:10px">Click the commit SHA to view the full diff on GitHub</span></div>
+      </div>`;
+  }
+
+  document.getElementById('step-detail-desc').innerHTML = descHtml;
+
+  document.getElementById('step-detail-links').innerHTML = data.links.map(l =>
     `<a class="ext" href="${l.url}" target="_blank">${l.label}</a>`
   ).join('');
-
-  if (data.dynamic) {
-    document.getElementById('step-detail-links').innerHTML = linksHtml + ' <span style="color:var(--muted);font-size:11px">fetching…</span>';
-    fetch(`${AGENT}/api/dashboard/latest-commit`).then(r=>r.json()).then(c => {
-      const badSha = '35a8c95';
-      const badUrl = `https://github.com/salginci/oncall-autopilot/commit/${badSha}`;
-      const badMsg = 'fix: reduce connection pool for testing';
-      const commitLink = `<a class="ext" href="${badUrl}" target="_blank" style="color:var(--red)">${badSha} — ${badMsg} (view diff)</a>`;
-      document.getElementById('step-detail-links').innerHTML = `
-        <div style="margin-bottom:6px"><b style="color:var(--red);font-size:11px">Failing commit:</b> ${commitLink}</div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">File changed: <span style="color:var(--orange)">demo/service/config.yaml</span></div>
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Diff: <span style="color:var(--red)">- pool_size: 20</span> → <span style="color:var(--green)">+ pool_size: 0</span></div>
-        ${linksHtml}
-      `;
-    }).catch(() => {
-      document.getElementById('step-detail-links').innerHTML = linksHtml;
-    });
-  } else {
-    document.getElementById('step-detail-links').innerHTML = linksHtml;
-  }
 
   box.classList.add('visible');
   box.scrollIntoView({behavior:'smooth', block:'nearest'});

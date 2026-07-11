@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
@@ -104,13 +105,62 @@ async def dashboard_state():
 @app.post("/api/dashboard/trigger")
 async def dashboard_trigger():
     import httpx
+    import base64
+    import yaml
+    from src.tools.github import github_tool
+
+    result = {"status": "triggered"}
+
+    # 1. Push a real commit to GitHub changing pool_size 20→0
+    try:
+        repo = github_tool.repo
+        file_path = "demo/service/config.yaml"
+        contents = repo.get_contents(file_path, ref="main")
+        config = yaml.safe_load(base64.b64decode(contents.content))
+        config["database"]["pool_size"] = 0
+        new_content = yaml.dump(config, default_flow_style=False)
+        commit_msg = f"BREAKING: reduce connection pool to 0 (simulated outage {datetime.now(timezone.utc).strftime('%H:%M:%S')})"
+        update = repo.update_file(
+            path=file_path,
+            message=commit_msg,
+            content=new_content,
+            sha=contents.sha,
+            branch="main",
+        )
+        commit_sha = update["commit"].sha
+        result["commit_sha"] = commit_sha
+        result["commit_url"] = f"https://github.com/salginci/oncall-autopilot/commit/{commit_sha}"
+        result["commit_message"] = commit_msg
+    except Exception as e:
+        result["commit_error"] = str(e)
+
+    # 2. Restore pool to 20 immediately (so the demo keeps working after the demo)
+    try:
+        repo = github_tool.repo
+        contents = repo.get_contents(file_path, ref="main")
+        config = yaml.safe_load(base64.b64decode(contents.content))
+        config["database"]["pool_size"] = 20
+        new_content = yaml.dump(config, default_flow_style=False)
+        repo.update_file(
+            path=file_path,
+            message="fix: restore connection pool to 20",
+            content=new_content,
+            sha=contents.sha,
+            branch="main",
+        )
+    except Exception:
+        pass
+
+    # 3. Trigger the outage on the demo service
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
             data = resp.json()
-            return {"status": "triggered", "pool_size": data.get("pool_size", 0)}
+            result["pool_size"] = data.get("pool_size", 0)
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        result["pool_error"] = str(e)
+
+    return result
 
 
 @app.post("/api/dashboard/reset")

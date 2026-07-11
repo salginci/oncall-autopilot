@@ -207,14 +207,19 @@ async def dashboard_reset():
 
     set_trigger_commit(None)
     PENDING_APPROVALS.clear()
-    store = StateStore()
-    await store.connect()
+    # Clearing persisted incidents is best-effort — a transient Redis issue must not make
+    # Reset fail (the pool + GitHub cleanup above already ran).
     try:
-        active_ids = await store.list_active()
-        for aid in active_ids:
-            await store.delete(aid)
-    finally:
-        await store.disconnect()
+        store = StateStore()
+        await store.connect()
+        try:
+            active_ids = await store.list_active()
+            for aid in active_ids:
+                await store.delete(aid)
+        finally:
+            await store.disconnect()
+    except Exception:
+        pass
     return {"status": "reset"}
 
 

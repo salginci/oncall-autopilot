@@ -94,8 +94,8 @@
   <span style="font-size:12px;color:var(--muted);" id="global-status">Initializing...</span>
   <span style="flex:1"></span>
   <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank" style="font-size:12px">GitHub Repo</a>
-  <a class="ext" href="http://localhost:3000/health" target="_blank" style="font-size:12px">Demo /health</a>
-  <a class="ext" href="http://localhost:3000/metrics" target="_blank" style="font-size:12px">Demo /metrics</a>
+   <a class="ext" href="#" onclick="window.open(DEMO+'/health');return false" style="font-size:12px">Demo /health</a>
+  <a class="ext" href="#" onclick="window.open(DEMO+'/metrics');return false" style="font-size:12px">Demo /metrics</a>
   <button class="btn trigger" id="btn-trigger" onclick="triggerIncident()">Trigger Incident</button>
   <button class="btn approve" id="btn-approve" disabled onclick="showApproval()">Review & Approve</button>
   <button class="btn deny" id="btn-deny" disabled onclick="denyIncident()">Deny</button>
@@ -200,6 +200,7 @@
 
 <script>
 const AGENT = '';
+const DEMO = (() => { const h = window.location.hostname; return h === 'localhost' || h === '127.0.0.1' ? 'http://localhost:3000' : `http://${h}:3000`; })();
 let currentIncident = null;
 let flowProgress = 0;
 let flowTimer = null;
@@ -255,7 +256,7 @@ function showApproval() {
       <b>Rollback Plan:</b> ${rem.rollback_plan || '—'}<br/><br/>
       <span style="color:var(--orange)">This will restore the connection pool from 0 → 20 immediately.</span><br/><br/>
       <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">Verify on GitHub</a><br/>
-      <a class="ext" href="http://localhost:3000/metrics" target="_blank">Live metrics</a>
+      <a class="ext" href="${DEMO}/metrics" target="_blank">Live metrics</a>
     `;
   });
 }
@@ -299,8 +300,8 @@ async function triggerIncident() {
     <span style="color:var(--orange)">This will cause all DB connections to fail (503).</span><br/><br/>
     <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank">View repo on GitHub</a><br/>
     <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">View commit history</a><br/>
-    <a class="ext" href="http://localhost:3000/health" target="_blank">Demo service /health</a><br/>
-    <a class="ext" href="http://localhost:3000/metrics" target="_blank">Demo service /metrics</a>
+    <a class="ext" href="${DEMO}/health" target="_blank">Demo service /health</a><br/>
+    <a class="ext" href="${DEMO}/metrics" target="_blank">Demo service /metrics</a>
   `;
 
   await fetch(`${AGENT}/api/dashboard/trigger`, {method:'POST'}).then(r=>r.json()).then(data => {
@@ -416,8 +417,8 @@ async function triggerIncident() {
       <div style="margin-top:8px">
         <a class="ext" href="https://github.com/salginci/oncall-autopilot" target="_blank">View repo</a> &nbsp;
         <a class="ext" href="https://github.com/salginci/oncall-autopilot/commits/main" target="_blank">Commit history</a> &nbsp;
-        <a class="ext" href="http://localhost:3000/health" target="_blank">/health</a> &nbsp;
-        <a class="ext" href="http://localhost:3000/metrics" target="_blank">/metrics</a>
+        <a class="ext" href="${DEMO}/health" target="_blank">/health</a> &nbsp;
+        <a class="ext" href="${DEMO}/metrics" target="_blank">/metrics</a>
       </div>
     `;
 
@@ -489,7 +490,7 @@ const STEP_DETAILS = {
     desc: 'The <b>commit watcher</b> (<code>src/tools/watcher.py</code>) polls the GitHub API every loop cycle. When it detects a new commit touching a <code>*.yaml</code> file, it triggers <code>POST /admin/pool/0</code> on the demo service, reloading it with the bad config.',
     links: [
       {label: 'watcher.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/tools/watcher.py'},
-      {label: 'Demo /admin/reload', url: 'http://localhost:3000/admin/reload'},
+      {label: 'Demo /admin/reload', url: '${DEMO}/admin/reload'},
       {label: 'GitHub API', url: 'https://docs.github.com/en/rest/commits/commits'},
     ]
   },
@@ -498,8 +499,8 @@ const STEP_DETAILS = {
     desc: 'The <b>monitor loop</b> (<code>src/orchestrator/engine.py</code>) polls the demo service every 5 seconds. When <code>error_rate > 10%</code> or <code>P50 latency > 500ms</code>, an <b>Alert</b> is raised and an <b>Incident</b> is created in the state machine. The incident transitions to RECEIVED → TRIAGING.',
     links: [
       {label: 'engine.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/engine.py'},
-      {label: 'Demo /metrics', url: 'http://localhost:3000/metrics'},
-      {label: 'Agent /health', url: 'http://localhost:8080/health'},
+      {label: 'Demo /metrics', url: '${DEMO}/metrics'},
+      {label: 'Agent /health', url: '/health'},
     ]
   },
   3: {
@@ -516,7 +517,7 @@ const STEP_DETAILS = {
     desc: 'Qwen calls multiple <b>tools</b> to gather evidence: <code>get_recent_commits()</code> to find recent changes, <code>get_error_rate()</code> and <code>get_health()</code> to verify symptoms, <code>get_commit_diff()</code> to examine exactly what changed. It then forms a <b>root cause hypothesis</b> with a confidence score (0–100%) and a list of evidence points. Up to 5 turns of tool calling are allowed.',
     links: [
       {label: 'investigate.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/agents/investigate.py'},
-      {label: 'Demo /health', url: 'http://localhost:3000/health'},
+      {label: 'Demo /health', url: '${DEMO}/health'},
       {label: 'GitHub commits API', url: 'https://api.github.com/repos/salginci/oncall-autopilot/commits'},
     ]
   },
@@ -525,7 +526,7 @@ const STEP_DETAILS = {
     desc: 'Given the root cause (pool_size: 20→0), Qwen generates a concrete <b>fix plan</b> including: specific <b>commands</b> to execute, a <b>risk level</b> (LOW/MEDIUM/HIGH), a <b>rollback plan</b> in case something goes wrong, and always sets <code>requires_approval: true</code> for human-in-the-loop safety. The fix action is typically a pool restore or commit revert.',
     links: [
       {label: 'remediate.py source', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/agents/remediate.py'},
-      {label: 'Demo /admin/pool/20', url: 'http://localhost:3000/admin/pool/20'},
+      {label: 'Demo /admin/pool/20', url: '${DEMO}/admin/pool/20'},
     ]
   },
   6: {
@@ -533,15 +534,15 @@ const STEP_DETAILS = {
     desc: 'The incident enters the <b>human-in-the-loop</b> gate. The proposed fix is displayed but <b>NOT executed yet</b>. A human operator must review the Qwen analysis, verify the evidence, and explicitly click <b>Approve & Fix</b> or <b>Deny</b>. If denied, an override command can be specified. This is the critical safety checkpoint — the agent does not act autonomously on production.',
     links: [
       {label: 'engine.py — approve/deny', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/engine.py'},
-      {label: 'Agent /api/incidents', url: 'http://localhost:8080/api/incidents'},
+      {label: 'Agent /api/incidents', url: '/api/incidents'},
     ]
   },
   7: {
     title: 'Step 8: Fix Executed → Service Recovered',
     desc: 'After human approval, the fix is executed: the agent calls <code>POST /admin/pool/20</code> on the demo service, restoring the connection pool. The incident transitions to <b>RESOLVED</b>. The monitor loop confirms the error rate drops back below threshold and the service returns to <b>healthy</b> state. The incident lifecycle is complete and stored in Redis.',
     links: [
-      {label: 'Demo /health', url: 'http://localhost:3000/health'},
-      {label: 'Demo /metrics', url: 'http://localhost:3000/metrics'},
+      {label: 'Demo /health', url: '${DEMO}/health'},
+      {label: 'Demo /metrics', url: '${DEMO}/metrics'},
       {label: 'Incident state flow', url: 'https://github.com/salginci/oncall-autopilot/blob/main/src/orchestrator/state_machine.py'},
     ]
   },

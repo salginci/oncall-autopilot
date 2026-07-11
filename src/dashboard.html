@@ -105,8 +105,8 @@
 <div class="grid">
   <!-- Left: Service metrics -->
   <div class="panel">
-    <h2>Orders Service :3000</h2>
-    <div class="metric"><span>Status</span><span class="val" id="m-status">—</span></div>
+    <h2><a class="ext" href="#" onclick="window.open(DEMO+'/health');return false" style="color:var(--blue)" title="Open the live orders-service /health in a new tab">Orders Service :3000</a></h2>
+    <div class="metric"><span>Status</span><span class="val" id="m-status">…</span></div>
     <div class="metric"><span>Pool Size</span><span class="val" id="m-pool">—</span></div>
     <div class="metric"><span>Available</span><span class="val" id="m-avail">—</span></div>
     <div class="metric"><span>Error Rate</span><span class="val" id="m-error">—</span></div>
@@ -649,6 +649,14 @@ async function bgPoll() {
     document.getElementById('m-total').textContent = svc.total_requests||'—';
     document.getElementById('m-latency').textContent = (svc.latency_p50_ms||0)+'ms';
 
+    // Clear the initial "Initializing…" as soon as the first poll returns and we're idle
+    // (an active incident is handled by the safety-net block below).
+    const gs = document.getElementById('global-status');
+    if (gs.textContent === 'Initializing...' && !d.pending_approval) {
+      document.getElementById('global-dot').className = 'status-dot idle';
+      gs.textContent = 'Idle — Ready';
+    }
+
     // Update Qwen panel if we have incident detail
     const det = d.incident_detail;
     if (det && det.root_cause && flowProgress >= 5) {
@@ -685,7 +693,11 @@ async function bgPoll() {
 }
 
 setInterval(bgPoll, 1500);
+// Front-load the first few polls so the service stats paint immediately on load
+// instead of sitting as dashes until the first 1.5s tick.
 bgPoll();
+setTimeout(bgPoll, 300);
+setTimeout(bgPoll, 800);
 
 // Attach click handlers to flow steps
 document.querySelectorAll('.flow-step').forEach(el => {

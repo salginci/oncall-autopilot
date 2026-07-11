@@ -638,15 +638,18 @@ async function bgPoll() {
     const svc = d.service || {};
 
     const er = ((svc.error_rate||0)*100).toFixed(1);
+    // Use ?? (not ||) so a real 0 renders as "0" and colors correctly instead of being
+    // treated as falsy ("—"/green).
+    const poolSize = svc.pool_size, poolAvail = svc.pool_available;
     document.getElementById('m-status').textContent = svc.status||'—';
     document.getElementById('m-status').className = 'val '+(svc.status==='healthy'?'ok':'bad');
-    document.getElementById('m-pool').textContent = svc.pool_size||'—';
-    document.getElementById('m-pool').className = 'val '+((svc.pool_size||20)<2?'bad':'ok');
-    document.getElementById('m-avail').textContent = svc.pool_available||'—';
-    document.getElementById('m-avail').className = 'val '+((svc.pool_available||0)===0?'bad':'ok');
+    document.getElementById('m-pool').textContent = (poolSize ?? '—');
+    document.getElementById('m-pool').className = 'val '+((poolSize != null && poolSize < 2)?'bad':'ok');
+    document.getElementById('m-avail').textContent = (poolAvail ?? '—');
+    document.getElementById('m-avail').className = 'val '+((poolAvail != null && poolAvail === 0)?'bad':'ok');
     document.getElementById('m-error').textContent = er+'%';
     document.getElementById('m-error').className = 'val '+(parseFloat(er)>10?'bad':(parseFloat(er)>0?'warn':'ok'));
-    document.getElementById('m-total').textContent = svc.total_requests||'—';
+    document.getElementById('m-total').textContent = (svc.total_requests ?? '—');
     document.getElementById('m-latency').textContent = (svc.latency_p50_ms||0)+'ms';
 
     // Clear the initial "Initializing…" as soon as the first poll returns and we're idle

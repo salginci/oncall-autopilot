@@ -126,6 +126,22 @@ async def dashboard_trigger():
         file_path = "demo/service/config.yaml"
         contents = repo.get_contents(file_path, ref="main")
         config = yaml.safe_load(base64.b64decode(contents.content))
+
+        # Ensure a healthy baseline (pool_size=20) before breaking, so the breaking commit
+        # always shows a real 20→0 diff. Without this, a prior un-reverted trigger leaves main
+        # at 0 and writing 0 again produces an empty "0 file changed" commit.
+        if config["database"].get("pool_size") != 20:
+            config["database"]["pool_size"] = 20
+            baseline = repo.update_file(
+                path=file_path,
+                message="chore: restore baseline pool to 20 before demo",
+                content=yaml.dump(config, default_flow_style=False),
+                sha=contents.sha,
+                branch="main",
+            )
+            contents = repo.get_contents(file_path, ref="main")
+            config = yaml.safe_load(base64.b64decode(contents.content))
+
         config["database"]["pool_size"] = 0
         new_content = yaml.dump(config, default_flow_style=False)
         commit_msg = f"BREAKING: reduce connection pool to 0 (simulated outage {datetime.now(timezone.utc).strftime('%H:%M:%S')})"

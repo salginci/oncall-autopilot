@@ -33,7 +33,19 @@ class CommitWatcher:
         logger.info("commit_watcher", event="config_change_detected", sha=latest.sha[:7],
                     message=latest.message, files=latest.files_changed)
 
-        result = await deploy_tool.reload_config()
+        # Apply the pool_size committed at this SHA so the running service tracks GitHub
+        # (a bad commit reinforces the outage; a revert/restore commit recovers it).
+        # Reading from the commit — not a stale local file — is what prevents the
+        # self-heal race that could resolve an incident before it is ever detected.
+        pool_size = await github_tool.get_pool_size_at(latest.sha)
+        if pool_size is None:
+            # Fall back to local reload if we can't read the committed config.
+            result = await deploy_tool.reload_config()
+            return "error" not in result
+
+        logger.info("commit_watcher", event="applying_committed_pool_size",
+                    sha=latest.sha[:7], pool_size=pool_size)
+        result = await deploy_tool.set_pool(pool_size)
         return "error" not in result
 
 

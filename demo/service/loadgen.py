@@ -41,7 +41,7 @@ def worker():
 
 
 def main():
-    num_workers = 15
+    num_workers = 3
     print(f"Starting {num_workers} concurrent load generators...")
     for i in range(num_workers):
         t = threading.Thread(target=worker, daemon=True)

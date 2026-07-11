@@ -6,6 +6,15 @@ class DeployTool:
     def __init__(self):
         self.base_url = settings.DEMO_SERVICE_URL
 
+    async def set_pool(self, size: int) -> dict:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.post(f"{self.base_url}/admin/pool/{size}")
+                resp.raise_for_status()
+                return resp.json()
+            except Exception as e:
+                return {"error": str(e)}
+
     async def reload_config(self) -> dict:
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:

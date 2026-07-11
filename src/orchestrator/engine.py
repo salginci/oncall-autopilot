@@ -19,8 +19,23 @@ from src.observability import logger
 
 PENDING_APPROVALS: dict[str, Incident] = {}
 
+# Set to True from the moment an incident is created until it is resolved/denied/suppressed.
+# Guards monitor_loop against creating a duplicate incident (and firing duplicate Qwen calls)
+# on every 5s poll while the error rate stays high.
+_incident_in_flight: bool = False
+
+# SHA of the "breaking" commit pushed by the dashboard trigger — used as a fallback target
+# for the real revert on approval if investigation didn't pin down a commit.
+_last_trigger_sha: Optional[str] = None
+
+
+def set_trigger_commit(sha: Optional[str]) -> None:
+    global _last_trigger_sha
+    _last_trigger_sha = sha
+
 
 async def process_incident(incident: Incident):
+    global _incident_in_flight
     store = StateStore()
     await store.connect()
     fsm = IncidentStateMachine(incident)
@@ -42,6 +57,7 @@ async def process_incident(incident: Incident):
         if not triage_result.get("should_investigate", True):
             fsm.transition_to(IncidentState.SUPPRESSED, "Low severity — suppressed")
             await store.save(incident)
+            _incident_in_flight = False
             logger.info(incident.trace_id, incident.incident_id, event="incident_suppressed")
             return incident
 
@@ -81,6 +97,7 @@ async def process_incident(incident: Incident):
         return incident
 
     except Exception as e:
+        _incident_in_flight = False
         logger.error(incident.trace_id, incident.incident_id, event="processing_error", error=str(e))
         return incident
     finally:
@@ -88,6 +105,7 @@ async def process_incident(incident: Incident):
 
 
 async def approve_incident(incident_id: str) -> dict:
+    global _incident_in_flight
     incident = PENDING_APPROVALS.pop(incident_id, None)
     if not incident:
         return {"success": False, "error": f"No pending incident {incident_id}"}
@@ -104,6 +122,27 @@ async def approve_incident(incident_id: str) -> dict:
     except Exception:
         pass
 
+    # 1. Execute the real fix: revert the breaking commit on GitHub. Prefer the commit the
+    # investigation pinned, fall back to the trigger's recorded SHA, then the latest main commit.
+    revert_sha = (incident.root_cause.commit_sha if incident.root_cause else None) or _last_trigger_sha
+    if not revert_sha:
+        try:
+            commits = await github_tool.get_recent_commits(since_minutes=60, limit=1)
+            revert_sha = commits[0].sha if commits else None
+        except Exception:
+            revert_sha = None
+
+    if revert_sha:
+        reason = f"Auto-remediation for incident {incident.incident_id}: restore connection pool"
+        revert_result = await github_tool.push_revert(revert_sha, reason)
+        result["details"].append({"github_revert": revert_result})
+        logger.info(incident.trace_id, incident.incident_id, event="github_revert",
+                    target=revert_sha[:7], success=revert_result.get("success"))
+    else:
+        result["details"].append({"github_revert": {"success": False, "error": "no commit to revert"}})
+
+    # 2. Restore the running service immediately so recovery is instant on camera (the watcher
+    # will also converge to the reverted config on its next poll).
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/20")
@@ -123,15 +162,18 @@ async def approve_incident(incident_id: str) -> dict:
     except Exception:
         pass
 
+    _incident_in_flight = False
     logger.info(incident.trace_id, incident.incident_id, event="incident_resolved")
     return result
 
 
 async def deny_incident(incident_id: str, override_action: str = "") -> dict:
+    global _incident_in_flight
     incident = PENDING_APPROVALS.pop(incident_id, None)
     if not incident:
         return {"success": False, "error": f"No pending incident {incident_id}"}
 
+    _incident_in_flight = False
     fsm = IncidentStateMachine(incident)
 
     if override_action:
@@ -153,6 +195,7 @@ async def deny_incident(incident_id: str, override_action: str = "") -> dict:
 
 
 async def monitor_loop(interval: Optional[int] = None):
+    global _incident_in_flight
     poll_interval = interval if interval is not None else settings.AGENT_POLL_INTERVAL
 
     logger.info("monitor", event="monitor_loop_started", interval=poll_interval)
@@ -174,7 +217,14 @@ async def monitor_loop(interval: Optional[int] = None):
             logger.info(trace_id, event="monitor_poll",
                         error_rate=error_rate, latency_p50_ms=latency)
 
-            if error_rate > settings.ERROR_RATE_THRESHOLD or latency > settings.LATENCY_THRESHOLD_MS:
+            threshold_breached = (
+                error_rate > settings.ERROR_RATE_THRESHOLD
+                or latency > settings.LATENCY_THRESHOLD_MS
+            )
+            # Dedup: only one incident in flight at a time. Without this the loop would spawn a
+            # brand-new incident (and 3+ Qwen calls) on every poll while the outage persists.
+            if threshold_breached and not _incident_in_flight and not PENDING_APPROVALS:
+                _incident_in_flight = True
                 alert = Alert(
                     service="demo-service",
                     title="Service Degradation Detected",
@@ -189,8 +239,5 @@ async def monitor_loop(interval: Optional[int] = None):
         except Exception as e:
             trace_id = str(uuid.uuid4())
             logger.error(trace_id, event="monitor_error", error=str(e))
-
-        except Exception as e:
-            logger.error("monitor", event="monitor_loop_error", error=str(e), error_type=type(e).__name__)
 
         await asyncio.sleep(poll_interval)

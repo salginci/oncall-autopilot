@@ -289,6 +289,10 @@ async function confirmApprove() {
 }
 
 async function triggerIncident() {
+  // Lock the trigger for the whole run so a double-click can't fire two incidents.
+  document.getElementById('btn-trigger').disabled = true;
+  document.getElementById('btn-approve').disabled = true;
+  document.getElementById('btn-deny').disabled = true;
   addLog('TRIGGER → Reducing pool from 20 to 0...', 'event');
   document.getElementById('action-context').innerHTML = `
     <b style="color:var(--red)">Bad commit pushed to GitHub</b><br/><br/>
@@ -366,13 +370,14 @@ async function triggerIncident() {
 
   await delay(3000); setFlowStep(6);
 
-  // Try to get actual Qwen analysis from backend
-  let qwenData = null;
-  try {
-    const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
-    qwenData = d.incident_detail;
-    if (qwenData && qwenData.pending_approval) currentIncident = d.pending_approval;
-  } catch(e) {}
+  // Safety net: the animation above runs on fixed timers, but "Review & Approve" must only
+  // light up once the REAL backend incident + Qwen analysis exist and it has reached the
+  // human-approval gate. Poll until ready (or the budget elapses) instead of a single fetch.
+  document.getElementById('action-context').innerHTML = `
+    <b style="color:var(--purple)">Qwen analyzing…</b><br/><br/>
+    <span style="color:var(--muted)">Waiting for the agent to finish triage → investigate → remediate and reach the human-approval gate.</span>
+  `;
+  let qwenData = await waitForIncidentReady(20000);
 
   if (qwenData && qwenData.root_cause) {
     // Show real Qwen analysis
@@ -429,21 +434,41 @@ async function triggerIncident() {
       <span>Risk: </span><b>${rem.risk||'—'}</b><br/><br/>
       <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see full details and execute.</span>
     `;
-  } else {
-    document.getElementById('action-context').innerHTML = `
-      <b style="color:var(--orange)">Review Required</b><br/><br/>
-      <span>Qwen has completed analysis and proposed a fix.</span><br/><br/>
-      <span>Click </span><b style="color:var(--green)">Review & Approve</b><span> to see the full analysis and execute the fix.</span>
-    `;
   }
 
-  addLog('STATE → WAITING APPROVAL — human review required', 'event');
+  if (qwenData && qwenData.root_cause) {
+    // Backend is genuinely at the approval gate — enable the human-in-the-loop controls.
+    addLog('STATE → WAITING APPROVAL — human review required', 'event');
+    document.getElementById('global-dot').className = 'status-dot active';
+    document.getElementById('global-status').textContent = 'WAITING APPROVAL';
+    document.getElementById('btn-approve').disabled = false;
+    document.getElementById('btn-deny').disabled = false;
+    document.getElementById('btn-trigger').disabled = true;
+  } else {
+    // Budget elapsed without a ready incident. Keep Approve disabled so it can never be a
+    // dead button; bgPoll() will enable it automatically if the incident lands shortly after.
+    addLog('WAIT → Incident not yet ready for approval — will enable when the agent catches up', 'err');
+    document.getElementById('action-context').innerHTML = `
+      <b style="color:var(--orange)">Agent still working…</b><br/><br/>
+      <span>The incident hasn't reached the approval gate yet. Approve will light up automatically the moment it's ready, or click <b>Reset</b> to try again.</span>
+    `;
+    document.getElementById('global-dot').className = 'status-dot active';
+    document.getElementById('global-status').textContent = 'ANALYZING';
+  }
+}
 
-  document.getElementById('global-dot').className = 'status-dot active';
-  document.getElementById('global-status').textContent = 'WAITING APPROVAL';
-  document.getElementById('btn-approve').disabled = false;
-  document.getElementById('btn-deny').disabled = false;
-  document.getElementById('btn-trigger').disabled = true;
+async function waitForIncidentReady(budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  while (Date.now() < deadline) {
+    try {
+      const d = await (await fetch(`${AGENT}/api/dashboard/state`)).json();
+      if (d.pending_approval) currentIncident = d.pending_approval;
+      const det = d.incident_detail;
+      if (det && det.root_cause && d.pending_approval) return det;
+    } catch(e) {}
+    await delay(1000);
+  }
+  return null;
 }
 
 async function denyIncident() {
@@ -623,6 +648,17 @@ async function bgPoll() {
 
     // Sync pending incident
     if (d.pending_approval) currentIncident = d.pending_approval;
+
+    // Continuous safety net: if the backend reaches the approval gate while the Approve button
+    // is still disabled mid-run (e.g. the scripted wait budget elapsed first), enable it now.
+    const triggerDisabled = document.getElementById('btn-trigger').disabled;
+    const approveDisabled = document.getElementById('btn-approve').disabled;
+    if (det && det.root_cause && d.pending_approval && approveDisabled && triggerDisabled) {
+      document.getElementById('btn-approve').disabled = false;
+      document.getElementById('btn-deny').disabled = false;
+      document.getElementById('global-dot').className = 'status-dot active';
+      document.getElementById('global-status').textContent = 'WAITING APPROVAL';
+    }
   } catch(e) {}
 }
 

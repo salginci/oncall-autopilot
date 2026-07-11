@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from src.api.webhook import router as webhook_router
-from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop
+from src.orchestrator.engine import PENDING_APPROVALS, approve_incident, deny_incident, monitor_loop, set_trigger_commit
 from src.db.state_store import StateStore
 from src.tools.metrics import metrics_tool
 from src.tools.deploy import deploy_tool
@@ -116,7 +116,11 @@ async def dashboard_trigger():
 
     result = {"status": "triggered"}
 
-    # 1. Push a real commit to GitHub changing pool_size 20→0
+    # 1. Push a single real breaking commit to GitHub changing pool_size 20→0.
+    #    We intentionally do NOT auto-restore here — the bad commit stays on main until a
+    #    human approves the fix, at which point the agent pushes a real revert. This keeps the
+    #    demo authentic (GitHub history shows break → genuine revert) and lets the commit
+    #    watcher converge the service to the committed value without a self-heal race.
     try:
         repo = github_tool.repo
         file_path = "demo/service/config.yaml"
@@ -136,27 +140,13 @@ async def dashboard_trigger():
         result["commit_sha"] = commit_sha
         result["commit_url"] = f"https://github.com/salginci/oncall-autopilot/commit/{commit_sha}"
         result["commit_message"] = commit_msg
+        # Record the breaking SHA so approval can revert exactly this commit.
+        set_trigger_commit(commit_sha)
     except Exception as e:
         result["commit_error"] = str(e)
 
-    # 2. Restore pool to 20 immediately (so the demo keeps working after the demo)
-    try:
-        repo = github_tool.repo
-        contents = repo.get_contents(file_path, ref="main")
-        config = yaml.safe_load(base64.b64decode(contents.content))
-        config["database"]["pool_size"] = 20
-        new_content = yaml.dump(config, default_flow_style=False)
-        repo.update_file(
-            path=file_path,
-            message="fix: restore connection pool to 20",
-            content=new_content,
-            sha=contents.sha,
-            branch="main",
-        )
-    except Exception:
-        pass
-
-    # 3. Trigger the outage on the demo service
+    # 2. Trigger the outage on the demo service immediately (snappy for the video; the watcher
+    #    would also apply pool_size=0 from the commit on its next poll).
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/0")
@@ -176,6 +166,30 @@ async def dashboard_reset():
             await client.post(f"{settings.DEMO_SERVICE_URL}/admin/pool/20")
     except Exception:
         pass
+
+    # Ensure GitHub's config.yaml is back to a clean pool_size=20 so the next take starts fresh
+    # (approval leaves a revert commit; a denied/aborted run may leave the bad commit on main).
+    try:
+        import base64
+        import yaml
+        from src.tools.github import github_tool
+        repo = github_tool.repo
+        file_path = "demo/service/config.yaml"
+        contents = repo.get_contents(file_path, ref="main")
+        config = yaml.safe_load(base64.b64decode(contents.content))
+        if config["database"].get("pool_size") != 20:
+            config["database"]["pool_size"] = 20
+            repo.update_file(
+                path=file_path,
+                message="chore: reset connection pool to 20 (demo reset)",
+                content=yaml.dump(config, default_flow_style=False),
+                sha=contents.sha,
+                branch="main",
+            )
+    except Exception:
+        pass
+
+    set_trigger_commit(None)
     PENDING_APPROVALS.clear()
     store = StateStore()
     await store.connect()
